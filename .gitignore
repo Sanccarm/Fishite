@@ -1,4 +1,3 @@
-node_modules
 .DS_Store
 dist
 dist-ssr
@@ -8,3 +7,4 @@ count.txt
 .nitro
 .tanstack
 .wrangler
+node_modules
