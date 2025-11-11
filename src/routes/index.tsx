@@ -2,6 +2,7 @@
 /** biome-ignore-all lint/a11y/noStaticElementInteractions: <Being dumb> */
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { Ocean } from "../components/Ocean";
 
 export const Route = createFileRoute("/")({
 	component: App,
@@ -69,11 +70,8 @@ function App() {
 	return (
 		// \/ Do not touch this div, work inside of it \/
 		<div onClick={handleClick} style={{ width: "100vw", height: "100vh", background: "#eee" }}> 
-			<div className="water-background">
-				<div className="light-rays"></div>
-				<div className="ocean-floor">
-					<div className="sand-texture"></div>
-				</div>
-			</div>
+			<Ocean>
+				<div className="sand-texture"></div>
+			</Ocean>
 		</div>)
 }

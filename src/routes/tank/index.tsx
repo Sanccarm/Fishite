@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
+import { Ocean } from "../../components/Ocean";
 
 export const Route = createFileRoute("/tank/")({
 	component: App,
@@ -145,10 +146,7 @@ export default function App() {
 				overflow: "hidden",
 			}}
 		>
-			<div className="water-background">
-				<div className="ocean-floor">
-					<div className="sand-texture"></div>
-				</div>
+			<Ocean>
 				{Object.entries(players)
 					.filter(([id, pos]) => {
 						// Only render players that have valid positions and a known socket ID
@@ -185,8 +183,7 @@ export default function App() {
 							/>
 						</div>
 					))}
-				<div className="light-rays"></div>
-			</div>
+			</Ocean>
 		</div>
 	)
 }
