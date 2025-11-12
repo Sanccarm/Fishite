@@ -217,14 +217,21 @@ export default function App() {
 							return false
 						return true
 					})
+					.sort(([idA], [idB]) => {
+						// Always render your own fish last so it appears on top
+						if (idA === myId) return 1;
+						if (idB === myId) return -1;
+						return 0;
+					})
 					.map(([id, playerData]) => (
 						<div
 							key={id}
 							style={{
-								opacity: id === myId ? 1 : 0.7,
+								opacity: id === myId ? 0.9 : 0.75,
 								transform: id === myId ? "scale(1.1)" : "scale(1.0)",
 								filter: id === myId ? "drop-shadow(0 0 5px yellow)" : "none",
 								transition: "opacity 0.1s linear, transform 0.1s linear",
+								
 							}}
 						>
 							<Fish
