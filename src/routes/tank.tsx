@@ -26,8 +26,7 @@ export default function App() {
 
 	const keysPressed = useRef(new Set<string>());
 	const fishSize = 50;
-	const speed = 1.5;
-	const friction = 0.9;
+	
 
 	// Redirect to start page if nickname or character is missing
 	useEffect(() => {
@@ -114,46 +113,41 @@ export default function App() {
 		// Use refs for smooth updates without stale state
 		const velocityRef = { x: 0, y: 0 };
 		const pos = { x: 100, y: 100 };
-		const maxVelocity = 10;
+		const ACCELERATION = 1.5; // must be greater than 0
+		const SPEED = 7;
+		const FRICTION = 0.9; // must be less than 1
 		let direction = 'right';
 
 		const move = () => {
-			let newVelX = velocityRef.x;
-			let newVelY = velocityRef.y;
-			let newDirection = direction as 'left' | 'right';
 			
 			// Accelerate while key pressed (works for arrow keys and wWASD)
 			if (keysPressed.current.has("ArrowUp") || keysPressed.current.has("w"))
-				newVelY -= speed;
+				velocityRef.y -= ACCELERATION * .55;
 			if (keysPressed.current.has("ArrowDown") || keysPressed.current.has("s"))
-				newVelY += speed;
+				velocityRef.y += ACCELERATION * .55;
 			if (keysPressed.current.has("ArrowLeft") || keysPressed.current.has("a"))
-				newVelX -= speed;
+				velocityRef.x -= ACCELERATION;
 			if (keysPressed.current.has("ArrowRight") || keysPressed.current.has("d"))
-				newVelX += speed;
+				velocityRef.x += ACCELERATION;
 
 			// Apply friction 
-			newVelX *= friction;
-			newVelY *= friction;
+			velocityRef.x *= FRICTION;
+			velocityRef.y *= FRICTION;
 
-			//max velocity
-			newVelX = Math.max(Math.min(newVelX, maxVelocity), -maxVelocity);
-			newVelY = Math.max(Math.min(newVelY, maxVelocity), -maxVelocity);
+			//max velocity: SPEED
+			velocityRef.x = Math.max(Math.min(velocityRef.x, SPEED), -SPEED);
+			velocityRef.y = Math.max(Math.min(velocityRef.y, SPEED * .8), -(SPEED*.8));
 
 			// Apply velocity
-			pos.x += newVelX;
-			pos.y += newVelY;
+			pos.x += velocityRef.x;
+			pos.y += velocityRef.y;
 
-			// Update direction
-			if (newVelX < -0.1) {
-				newDirection = 'left';
-			} else if (newVelX > 0.1) {
-				newDirection = 'right';
+			// Update direction only when there's significant movement
+			if (velocityRef.x < -0.1) {
+				direction = 'left'; 
+			} else if (velocityRef.x > 0.1) {
+				direction = 'right'; 
 			}
-
-			// Save new velocity
-			velocityRef.x = newVelX;
-			velocityRef.y = newVelY;
 
 			// Boundaries
 			const maxX = window.innerWidth - fishSize;
@@ -168,7 +162,7 @@ export default function App() {
 			// Update socket position to server
 			// Server will send back direction in playerMoved event
 			if (socketRef.current && myId) {
-				socketRef.current.emit("move", pos, newDirection);
+				socketRef.current.emit("move", pos, direction);
 				setPlayers((prev) => {
 					const current = prev[myId];
 					return {
@@ -177,7 +171,7 @@ export default function App() {
 							position: pos,
 							nickname: current?.nickname || nickname,
 							character: current?.character || character,
-							direction: newDirection as 'left' | 'right'
+							direction: direction as 'left' | 'right'
 						},
 					};
 				})
@@ -205,6 +199,7 @@ export default function App() {
 			}}
 		>
 			<Ocean>
+				
 				{Object.entries(players)
 					.filter(([id, playerData]) => {
 						// Only render players that have valid positions and a known socket ID
@@ -230,8 +225,7 @@ export default function App() {
 								opacity: id === myId ? 0.9 : 0.75,
 								transform: id === myId ? "scale(1.1)" : "scale(1.0)",
 								filter: id === myId ? "drop-shadow(0 0 5px yellow)" : "none",
-								transition: "opacity 0.1s linear, transform 0.1s linear",
-								
+								transition: "opacity 0.1s linear, transform 0.1s linear",								
 							}}
 						>
 							<Fish

@@ -8,3 +8,4 @@ count.txt
 .tanstack
 .wrangler
 node_modules
+.npmrc
