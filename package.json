@@ -5,11 +5,12 @@
   "scripts": {
     "dev": "vite --port 8000",
     "build": "vite build && tsc",
-    "serve": "vite preview",
+    "server": "cd server && npx nodemon server.js",
     "test": "vitest run",
     "format": "biome format",
     "lint": "biome lint",
-    "check": "biome check"
+    "check": "biome check",
+    "preview": "vite preview"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.0.6",

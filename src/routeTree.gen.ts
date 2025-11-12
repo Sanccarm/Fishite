@@ -9,68 +9,86 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as TankIndexRouteImport } from './routes/tank/index'
+import { Route as TestRouteImport } from './routes/test'
+import { Route as TankRouteImport } from './routes/tank'
+import { Route as StartRouteImport } from './routes/start'
 
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const TestRoute = TestRouteImport.update({
+  id: '/test',
+  path: '/test',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TankIndexRoute = TankIndexRouteImport.update({
-  id: '/tank/',
-  path: '/tank/',
+const TankRoute = TankRouteImport.update({
+  id: '/tank',
+  path: '/tank',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StartRoute = StartRouteImport.update({
+  id: '/start',
+  path: '/start',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/tank': typeof TankIndexRoute
+  '/start': typeof StartRoute
+  '/tank': typeof TankRoute
+  '/test': typeof TestRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/tank': typeof TankIndexRoute
+  '/start': typeof StartRoute
+  '/tank': typeof TankRoute
+  '/test': typeof TestRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/tank/': typeof TankIndexRoute
+  '/start': typeof StartRoute
+  '/tank': typeof TankRoute
+  '/test': typeof TestRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/tank'
+  fullPaths: '/start' | '/tank' | '/test'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/tank'
-  id: '__root__' | '/' | '/tank/'
+  to: '/start' | '/tank' | '/test'
+  id: '__root__' | '/start' | '/tank' | '/test'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  TankIndexRoute: typeof TankIndexRoute
+  StartRoute: typeof StartRoute
+  TankRoute: typeof TankRoute
+  TestRoute: typeof TestRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/test': {
+      id: '/test'
+      path: '/test'
+      fullPath: '/test'
+      preLoaderRoute: typeof TestRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/tank/': {
-      id: '/tank/'
+    '/tank': {
+      id: '/tank'
       path: '/tank'
       fullPath: '/tank'
-      preLoaderRoute: typeof TankIndexRouteImport
+      preLoaderRoute: typeof TankRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/start': {
+      id: '/start'
+      path: '/start'
+      fullPath: '/start'
+      preLoaderRoute: typeof StartRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  TankIndexRoute: TankIndexRoute,
+  StartRoute: StartRoute,
+  TankRoute: TankRoute,
+  TestRoute: TestRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
