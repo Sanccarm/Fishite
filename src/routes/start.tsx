@@ -26,6 +26,7 @@ const CHARACTERS = [
 	"humpback_salmon",
 	"shark",
 	"sunfish",
+	"fred"
 ];
 
 function App() {
