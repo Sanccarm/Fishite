@@ -32,6 +32,12 @@ const bubbleConfig = {
   maxBubbles: 500,
 };
 
+// Chat messages: ephemeral storage
+const messages = new Map(); // messageId -> { id, senderId, senderNickname, text, timestamp }
+const messageConfig = {
+  ttlMs: 6000, // messages fade after 6 seconds
+};
+
 io.on("connection", (socket) => {
 
   if (!socket.id) return;
@@ -122,6 +128,30 @@ io.on("connection", (socket) => {
     });
   });
 
+  // Handle chat message
+  socket.on("chatMessage", ({ text }) => {
+    if (!socket.id || !text || typeof text !== "string") return;
+    const playerData = players.get(socket.id);
+    if (!playerData || !playerData.nickname) return;
+
+    const messageId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const message = {
+      id: messageId,
+      senderId: socket.id,
+      senderNickname: playerData.nickname,
+      senderCharacter: playerData.character,
+      text: text.trim().substring(0, 200), // max 200 chars
+      timestamp: Date.now(),
+    };
+
+    messages.set(messageId, message);
+
+    // Broadcast to all clients
+    io.emit("chatMessageReceived", message);
+
+    console.log(`${playerData.nickname}: ${text}`);
+  });
+
   // Handle disconnect
   socket.on("disconnect", () => {
     if (!socket.id) return;
@@ -156,5 +186,16 @@ const port = process.env.PORT || 8080;
    }
    if (updates.length) io.emit("bubblesUpdate", updates);
  }, bubbleConfig.tickMs);
+
+ // Message cleanup loop: remove expired messages
+ setInterval(() => {
+   const now = Date.now();
+   for (const [id, msg] of messages.entries()) {
+     if (now - msg.timestamp > messageConfig.ttlMs) {
+       messages.delete(id);
+       io.emit("chatMessageRemoved", { id });
+     }
+   }
+ }, 1000); // Check every second
  
  server.listen(port, () => console.log(`🐠 Fish server running on port ${port}`));
