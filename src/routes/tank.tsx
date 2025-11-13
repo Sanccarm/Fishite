@@ -4,7 +4,6 @@ import { io } from "socket.io-client";
 import { Ocean } from "../components/Ocean";
 import { Fish } from "../components/Fish";
 import { ChatMessage } from "../components/ChatMessage";
-import { ChatInputModal } from "../components/ChatInputModal";
 import Bubble from "../components/ui/bubble";
 
 export const Route = createFileRoute("/tank")({
@@ -37,7 +36,6 @@ export default function App() {
 			timestamp: number;
 		}>
 	>({});
-	const [isChatModalOpen, setIsChatModalOpen] = useState(false);
 
     
 
@@ -299,13 +297,19 @@ export default function App() {
 		}
 	}, [myId, nickname, character]);
 
-	// Handle chat message send
-	const handleSendChat = (text: string) => {
-		if (socketRef.current && myId) {
-			socketRef.current.emit("chatMessage", { text });
-		}
-		setIsChatModalOpen(false);
-	};
+	// Handle chat message send from header
+	useEffect(() => {
+		const handleSendChat = (event: Event) => {
+			const customEvent = event as CustomEvent;
+			const { text } = customEvent.detail;
+			if (socketRef.current && myId) {
+				socketRef.current.emit("chatMessage", { text });
+			}
+		};
+
+		window.addEventListener('sendChat', handleSendChat);
+		return () => window.removeEventListener('sendChat', handleSendChat);
+	}, [myId]);
 
 	return (
 		<div
