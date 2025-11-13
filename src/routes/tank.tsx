@@ -127,9 +127,9 @@ export default function App() {
 			// Emit bubble on space press
 			if (e.key === " " || e.key === "Spacebar" || e.key.toLowerCase() === "space") {
 				// pos is the local position in this scope
-				// spawn bubble near top-center of fish
-				const bubbleX = pos.x + fishSize / 2;
-				const bubbleY = pos.y - 8;
+				// spawn bubble closer to the fish (near the mouth/top-center)
+				const bubbleX = pos.x - fishSize / 2 - 10;
+				const bubbleY = pos.y + Math.round(fishSize * 1);
 				if (socketRef.current && myId) {
 					socketRef.current.emit("bubbleCreate", { x: bubbleX, y: bubbleY });
 				}
