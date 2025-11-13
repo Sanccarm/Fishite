@@ -155,6 +155,28 @@ export default function App() {
 			const key = rawKey.startsWith("Arrow") ? rawKey : rawKey.toLowerCase();
 			keysPressed.current.add(key);
 
+			// Handle Enter key for chat
+			if (rawKey === "Enter") {
+				const active = document.activeElement as HTMLElement | null;
+				const activeTag = active?.tagName ?? "";
+				let isTextControl = false;
+				if (active) {
+					if (activeTag === "TEXTAREA" || activeTag === "SELECT") isTextControl = true;
+					if (activeTag === "INPUT") {
+						const type = (active.getAttribute("type") || "").toLowerCase();
+						if (type !== "range") isTextControl = true;
+					}
+					if (active.isContentEditable) isTextControl = true;
+				}
+				
+				// Only open chat modal if not already in a text control
+				if (!isTextControl) {
+					e.preventDefault();
+					setIsChatModalOpen(true);
+				}
+				return;
+			}
+
 			// Emit bubble on space press but avoid interfering with focused form controls
 			const isSpace = rawKey === " " || rawKey === "Spacebar" || rawKey.toLowerCase() === "space";
 			if (isSpace) {
@@ -359,6 +381,11 @@ export default function App() {
 							<Bubble key={id} id={id} x={b.x} y={b.y} size={12} />
 						))}
 			</Ocean>
+			<ChatInputModal
+				isOpen={isChatModalOpen}
+				onSend={handleSendChat}
+				onClose={() => setIsChatModalOpen(false)}
+			/>
 		</div>
 	)
 }
