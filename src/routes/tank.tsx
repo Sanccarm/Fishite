@@ -4,7 +4,6 @@ import { io } from "socket.io-client";
 import { Ocean } from "../components/Ocean";
 import { Fish } from "../components/Fish";
 import { ChatMessage } from "../components/ChatMessage";
-import { ChatInputModal } from "../components/ChatInputModal";
 import Bubble from "../components/ui/bubble";
 
 export const Route = createFileRoute("/tank")({
@@ -37,7 +36,6 @@ export default function App() {
 			timestamp: number;
 		}>
 	>({});
-	const [isChatModalOpen, setIsChatModalOpen] = useState(false);
 
     
 
@@ -156,28 +154,6 @@ export default function App() {
 			const rawKey = e.key;
 			const key = rawKey.startsWith("Arrow") ? rawKey : rawKey.toLowerCase();
 			keysPressed.current.add(key);
-
-			// Handle Enter key for chat
-			if (rawKey === "Enter") {
-				const active = document.activeElement as HTMLElement | null;
-				const activeTag = active?.tagName ?? "";
-				let isTextControl = false;
-				if (active) {
-					if (activeTag === "TEXTAREA" || activeTag === "SELECT") isTextControl = true;
-					if (activeTag === "INPUT") {
-						const type = (active.getAttribute("type") || "").toLowerCase();
-						if (type !== "range") isTextControl = true;
-					}
-					if (active.isContentEditable) isTextControl = true;
-				}
-				
-				// Only open chat modal if not already in a text control
-				if (!isTextControl) {
-					e.preventDefault();
-					setIsChatModalOpen(true);
-				}
-				return;
-			}
 
 			// Emit bubble on space press but avoid interfering with focused form controls
 			const isSpace = rawKey === " " || rawKey === "Spacebar" || rawKey.toLowerCase() === "space";
@@ -299,13 +275,19 @@ export default function App() {
 		}
 	}, [myId, nickname, character]);
 
-	// Handle chat message send
-	const handleSendChat = (text: string) => {
-		if (socketRef.current && myId) {
-			socketRef.current.emit("chatMessage", { text });
-		}
-		setIsChatModalOpen(false);
-	};
+	// Handle chat message send from header
+	useEffect(() => {
+		const handleSendChat = (event: Event) => {
+			const customEvent = event as CustomEvent;
+			const { text } = customEvent.detail;
+			if (socketRef.current && myId) {
+				socketRef.current.emit("chatMessage", { text });
+			}
+		};
+
+		window.addEventListener('sendChat', handleSendChat);
+		return () => window.removeEventListener('sendChat', handleSendChat);
+	}, [myId]);
 
 	return (
 		<div
@@ -377,11 +359,6 @@ export default function App() {
 							<Bubble key={id} id={id} x={b.x} y={b.y} size={12} />
 						))}
 			</Ocean>
-			<ChatInputModal
-				isOpen={isChatModalOpen}
-				onSend={handleSendChat}
-				onClose={() => setIsChatModalOpen(false)}
-			/>
 		</div>
 	)
 }

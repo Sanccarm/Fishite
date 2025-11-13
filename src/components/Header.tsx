@@ -2,12 +2,14 @@ import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAudio } from "../lib/AudioProvider";
+import { ChatInputModal } from "./ChatInputModal";
 
 
 export default function Header() {
 	const { isPlaying, start, stop, change, setVolume } = useAudio()
 	const [musicInitialized, setMusicInitialized] = useState(false)
 	const [volume, setVolumeState] = useState(1)
+	const [isChatOpen, setIsChatOpen] = useState(false);
 
 	const handleToggle = async () => {
 		if (!musicInitialized) {
@@ -26,13 +28,32 @@ export default function Header() {
 		setVolume(newVolume)
 	}
 
+	const handleSendChat = (text: string) => {
+		window.dispatchEvent(new CustomEvent('sendChat', { detail: { text } }));
+	}
+
 	return (
 		<div className="bg-primary w-full border-border border-b">
 			<div className="flex items-center justify-between mx-auto w-full px-4 py-2">
 				<Link to="/start">
 					<h1 className="font-bold text-4xl tracking-tighter text-secondary">Fishite</h1>
 				</Link>
-				<div className="flex items-center gap-2">
+				<div className="flex items-center gap-3">
+					<ChatInputModal
+						isOpen={isChatOpen}
+						onSend={handleSendChat}
+						onClose={() => setIsChatOpen(false)}
+					/>
+					{!isChatOpen && (
+						<Button
+							type="button"
+							onClick={() => setIsChatOpen(true)}
+							className="p-2"
+							title="Send a message"
+						>
+							<span aria-hidden className="text-3xl">💬</span>
+						</Button>
+					)}
 					<Button
 						type="button"
 						onClick={handleToggle}
