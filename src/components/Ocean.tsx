@@ -33,14 +33,14 @@ const defaultFloorItems = [
 
 export function Ocean({ children, floorItems = defaultFloorItems }: OceanProps) {
 	return (
-		<div className="water-background">
+		<>
 			<div className="light-rays"></div>
-            {children}
-			<div className="ocean-floor">
-				<div className="sand-texture"></div>
-				<Floor items={floorItems} />
-			</div>
-		</div>
+				<div className="ocean-floor">
+					<div className="sand-texture"></div>
+					<Floor items={floorItems} />
+				</div>
+			{children}		
+		</>
 	);
 }
 
