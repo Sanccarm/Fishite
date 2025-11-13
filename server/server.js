@@ -1,6 +1,7 @@
 import { Server } from "socket.io";
 import http from "http";
 import express from "express";
+import { filterText } from "./profanityFilter.js";
 
 const app = express();
 
@@ -51,11 +52,11 @@ io.on("connection", (socket) => {
     if (!socket.id) return;
     const data = players.get(socket.id);
     if (data) {
-      data.nickname = nickname;
+      data.nickname = filterText(nickname);
       data.character = character;
       players.set(socket.id, data);
       
-      console.log(`${nickname} joined: ${socket.id}`);
+      console.log(`${data.nickname} joined: ${socket.id}`);
       
       // Broadcast updated player info to others
       socket.broadcast.emit("playerJoined", {
@@ -135,12 +136,13 @@ io.on("connection", (socket) => {
     if (!playerData || !playerData.nickname) return;
 
     const messageId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const filteredText = filterText(text.trim().substring(0, 200)); // Filter and max 200 chars
     const message = {
       id: messageId,
       senderId: socket.id,
       senderNickname: playerData.nickname,
       senderCharacter: playerData.character,
-      text: text.trim().substring(0, 200), // max 200 chars
+      text: filteredText,
       timestamp: Date.now(),
     };
 
@@ -149,7 +151,7 @@ io.on("connection", (socket) => {
     // Broadcast to all clients
     io.emit("chatMessageReceived", message);
 
-    console.log(`${playerData.nickname}: ${text}`);
+    console.log(`${playerData.nickname}: ${filteredText}`);
   });
 
   // Handle disconnect
