@@ -1,5 +1,10 @@
 {
+  "name": "fishite-server",
+  "version": "1.0.0",
   "type": "module",
+  "scripts": {
+    "dev": "nodemon server.js"
+  },
   "dependencies": {
     "express": "^5.1.0",
     "nodemon": "^3.1.11",

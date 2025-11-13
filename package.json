@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "vite --port 8000",
     "build": "vite build && tsc",
-    "server": "cd server && npx nodemon server.js",
+    "server": "cd server && npm run dev",
     "test": "vitest run",
     "format": "biome format",
     "lint": "biome lint",
