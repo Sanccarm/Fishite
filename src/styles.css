@@ -83,7 +83,12 @@ body {
                 radial-gradient(circle at 90% 60%, #fff 1px, transparent 1px);
             background-size: 200px 200px, 250px 250px, 180px 180px, 220px 220px, 190px 190px, 240px 240px;
             background-position: 0 0, 50px 50px, 30px 80px, 100px 20px, 150px 100px, 80px 130px;
+            z-index: 1;
         }
+
+.floor-item {
+	z-index: 2;
+}
 
 code {
   font-family:
