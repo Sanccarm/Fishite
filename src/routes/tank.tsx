@@ -122,12 +122,34 @@ export default function App() {
 	}, []);
 
 	useEffect(() => {
-		const handleKeyDown = (e: { key: string }) => {
-			const key = e.key.startsWith("Arrow") ? e.key : e.key.toLowerCase();
+		const handleKeyDown = (e: KeyboardEvent) => {
+			const rawKey = e.key;
+			const key = rawKey.startsWith("Arrow") ? rawKey : rawKey.toLowerCase();
 			keysPressed.current.add(key);
 
-			// Emit bubble on space press
-			if (e.key === " " || e.key === "Spacebar" || e.key.toLowerCase() === "space") {
+			// Emit bubble on space press but avoid interfering with focused form controls
+			const isSpace = rawKey === " " || rawKey === "Spacebar" || rawKey.toLowerCase() === "space";
+			if (isSpace) {
+				const active = document.activeElement as HTMLElement | null;
+				const activeTag = active?.tagName ?? "";
+				// Allow normal space behavior only for text entry controls, but treat range inputs (volume sliders)
+				// as non-text so Space will spawn bubbles instead of moving the slider.
+				let isTextControl = false;
+				if (active) {
+					if (activeTag === "TEXTAREA" || activeTag === "SELECT") isTextControl = true;
+					if (activeTag === "INPUT") {
+						const type = (active.getAttribute("type") || "").toLowerCase();
+						// treat range (sliders) as non-text controls so Space spawns bubbles
+						if (type !== "range") isTextControl = true;
+					}
+					if (active.isContentEditable) isTextControl = true;
+				}
+				if (isTextControl) return; // let normal behavior occur for typing controls
+
+				// Prevent default so space doesn't toggle focused buttons (e.g., header play)
+				e.preventDefault();
+				e.stopPropagation();
+
 				// pos is the local position in this scope
 				// spawn bubble closer to the fish (near the mouth/top-center)
 				const bubbleX = pos.x - fishSize / 2 - 10;
@@ -138,8 +160,9 @@ export default function App() {
 			}
 		}
 
-		const handleKeyUp = (e: { key: string }) => {
-			const key = e.key.startsWith("Arrow") ? e.key : e.key.toLowerCase();
+		const handleKeyUp = (e: KeyboardEvent) => {
+			const rawKey = e.key;
+			const key = rawKey.startsWith("Arrow") ? rawKey : rawKey.toLowerCase();
 			keysPressed.current.delete(key);
 		}
 
