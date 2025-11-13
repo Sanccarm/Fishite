@@ -2,6 +2,7 @@
 /** biome-ignore-all lint/a11y/noStaticElementInteractions: <Being dumb> */
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { useAudio } from "../lib/AudioProvider";
 import { Ocean } from "../components/Ocean";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +35,9 @@ function App() {
 	const [character, setCharacter] = useState<string | null>(null);
 	const navigate = useNavigate();
 
+	const { isPlaying, start, stop, change } = useAudio()
+	const [musicInitialized, setMusicInitialized] = useState(false)
+
 	const handleEnterTank = () => {
 		if (!nickname.trim() || !character) return;
 		
@@ -45,12 +49,35 @@ function App() {
 		navigate({ to: "/tank" });
 	};
 
+	const handleToggleMusic = async () => {
+		if (!musicInitialized) {
+			// Initialize with the public music file and autoplay
+			await change('/music/theme_1.mp3', { autoplay: true })
+			setMusicInitialized(true)
+			return
+		}
+
+		if (isPlaying) stop()
+		else await start()
+	}
+
 	return (
 		<div className="flex items-center justify-center min-h-screen">
 			<Ocean>
 				<Card className="relative z-10 bg-white/90 backdrop-blur-sm max-w-2xl w-full mx-4">
 					<CardHeader>
-						<CardTitle className="text-3xl text-center">Choose Your Fish</CardTitle>
+						<div className="flex items-center justify-between">
+							<CardTitle className="text-3xl text-center">Choose Your Fish</CardTitle>
+							<div>
+								<Button
+									type="button"
+									onClick={handleToggleMusic}
+									className="ml-4"
+								>
+									{isPlaying ? 'Stop Music' : 'Play Music'}
+								</Button>
+							</div>
+						</div>
 					</CardHeader>
 					<CardContent className="space-y-6">
 						<div className="space-y-2">
