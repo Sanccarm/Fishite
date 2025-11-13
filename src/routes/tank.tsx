@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 import { Ocean } from "../components/Ocean";
 import { Fish } from "../components/Fish";
+import Bubble from "../components/ui/bubble";
 
 export const Route = createFileRoute("/tank")({
 	component: App,
@@ -26,6 +27,7 @@ export default function App() {
 
 	const keysPressed = useRef(new Set<string>());
 	const fishSize = 50;
+	const [bubbles, setBubbles] = useState<Record<string, { x: number; y: number }>>({});
 	
 
 	// Redirect to start page if nickname or character is missing
@@ -91,6 +93,27 @@ export default function App() {
 			})
 		})
 
+		// Bubbles: spawn, update, remove
+ 		socket.on("bubbleSpawned", ({ id, x, y }) => {
+ 			setBubbles((prev) => ({ ...prev, [id]: { x, y } }));
+ 		});
+
+ 		socket.on("bubblesUpdate", (updates: Array<{ id: string; x: number; y: number }>) => {
+ 			setBubbles((prev) => {
+ 				const copy = { ...prev };
+ 				for (const u of updates) copy[u.id] = { x: u.x, y: u.y };
+ 				return copy;
+ 			});
+ 		});
+
+ 		socket.on("bubbleRemoved", ({ id }) => {
+ 			setBubbles((prev) => {
+ 				const copy = { ...prev };
+ 				delete copy[id];
+ 				return copy;
+ 			});
+ 		});
+
 		return () => {
 			socket.disconnect();
 		}
@@ -100,6 +123,17 @@ export default function App() {
 		const handleKeyDown = (e: { key: string }) => {
 			const key = e.key.startsWith("Arrow") ? e.key : e.key.toLowerCase();
 			keysPressed.current.add(key);
+
+			// Emit bubble on space press
+			if (e.key === " " || e.key === "Spacebar" || e.key.toLowerCase() === "space") {
+				// pos is the local position in this scope
+				// spawn bubble near top-center of fish
+				const bubbleX = pos.x + fishSize / 2;
+				const bubbleY = pos.y - 8;
+				if (socketRef.current && myId) {
+					socketRef.current.emit("bubbleCreate", { x: bubbleX, y: bubbleY });
+				}
+			}
 		}
 
 		const handleKeyUp = (e: { key: string }) => {
@@ -239,6 +273,10 @@ export default function App() {
 							/>
 						</div>
 					))}
+
+						{Object.entries(bubbles).map(([id, b]) => (
+							<Bubble key={id} id={id} x={b.x} y={b.y} size={12} />
+						))}
 			</Ocean>
 		</div>
 	)
