@@ -24,6 +24,8 @@ export default function App() {
 	const character = localStorage.getItem("playerCharacter");
 	const navigate = useNavigate();
 
+    
+
 	const keysPressed = useRef(new Set<string>());
 	const fishSize = 50;
 	
@@ -198,6 +200,7 @@ export default function App() {
 				overflow: "hidden",
 			}}
 		>
+
 			<Ocean>
 				
 				{Object.entries(players)
