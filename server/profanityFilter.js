@@ -40,7 +40,6 @@ export function filterText(text) {
 export function hasProfanity(text) {
   if (!text || typeof text !== 'string') return false;
   
-  // Check standard profanity
   if (filter.isProfane(text)) return true;
   
   // Check obfuscated variations

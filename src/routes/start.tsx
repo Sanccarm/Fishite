@@ -63,73 +63,75 @@ function App() {
 
 	return (
 		<div className="flex items-center justify-center min-h-screen">
-			<Ocean>
-				<Card className="relative z-10 bg-white/90 backdrop-blur-sm max-w-2xl w-full mx-4">
-					<CardHeader>
-						<div className="flex items-center justify-between">
-							<CardTitle className="text-3xl text-center">Choose Your Fish</CardTitle>
-							<div>
-								<Button
-									type="button"
-									onClick={handleToggleMusic}
-									className="ml-4"
-								>
-									{isPlaying ? 'Stop Music' : 'Play Music'}
-								</Button>
-							</div>
-						</div>
-					</CardHeader>
-					<CardContent className="space-y-6">
-						<div className="space-y-2">
-							<Label htmlFor="nickname">Nickname</Label>
-							<Input
-								id="nickname"
-								type="text"
-								value={nickname}
-								onChange={(e) => setNickname(e.target.value)}
-								placeholder="Enter your nickname"
-								maxLength={20}
-							/>
-						</div>
-
-						<div className="space-y-3">
-							<Label>Select Character</Label>
-							<div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-4">
-								{CHARACTERS.map((char) => (
+			<div className="water-background">
+				<Ocean>
+					<Card className="relative z-10 bg-white/90 backdrop-blur-sm max-w-2xl w-full mx-4">
+						<CardHeader>
+							<div className="flex items-center justify-between">
+								<CardTitle className="text-3xl text-center">Choose Your Fish</CardTitle>
+								<div>
 									<Button
-										key={char}
 										type="button"
-										variant={character === char ? "default" : "outline"}
-										onClick={() => setCharacter(char)}
-										className={`p-2 h-auto flex-col ${
-											character === char ? "scale-105" : ""
-										}`}
+										onClick={handleToggleMusic}
+										className="ml-4"
 									>
-										<div className="w-full aspect-square flex items-center justify-center">
-											<img
-												src={`/fishes/${char}.gif`}
-												alt={char}
-												className="w-full h-full object-contain"
-											/>
-										</div>
-										<p className="text-xs mt-1 text-center truncate">{char}</p>
+										{isPlaying ? 'Stop Music' : 'Play Music'}
 									</Button>
-								))}
+								</div>
 							</div>
-						</div>
+						</CardHeader>
+						<CardContent className="space-y-6">
+							<div className="space-y-2">
+								<Label htmlFor="nickname">Nickname</Label>
+								<Input
+									id="nickname"
+									type="text"
+									value={nickname}
+									onChange={(e) => setNickname(e.target.value)}
+									placeholder="Enter your nickname"
+									maxLength={20}
+								/>
+							</div>
 
-						<Button
-							type="button"
-							onClick={handleEnterTank}
-							disabled={!nickname.trim() || !character}
-							className="w-full"
-							size="lg"
-						>
-							Start Swimming
-						</Button>
-					</CardContent>
-				</Card>
-			</Ocean>
+							<div className="space-y-3">
+								<Label>Select Character</Label>
+								<div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-4">
+									{CHARACTERS.map((char) => (
+										<Button
+											key={char}
+											type="button"
+											variant={character === char ? "default" : "outline"}
+											onClick={() => setCharacter(char)}
+											className={`p-2 h-auto flex-col ${
+												character === char ? "scale-105" : ""
+											}`}
+										>
+											<div className="w-full aspect-square flex items-center justify-center">
+												<img
+													src={`/fishes/${char}.gif`}
+													alt={char}
+													className="w-full h-full object-contain"
+												/>
+											</div>
+											<p className="text-xs mt-1 text-center truncate">{char}</p>
+										</Button>
+									))}
+								</div>
+							</div>
+
+							<Button
+								type="button"
+								onClick={handleEnterTank}
+								disabled={!nickname.trim() || !character}
+								className="w-full"
+								size="lg"
+							>
+								Start Swimming
+							</Button>
+						</CardContent>
+					</Card>
+				</Ocean>
+			</div>
 		</div>
 	);
 }

@@ -299,9 +299,7 @@ export default function App() {
 				overflow: "hidden",
 			}}
 		>
-
 			<Ocean>
-				
 				{Object.entries(players)
 					.filter(([id, playerData]) => {
 						// Only render players that have valid positions and a known socket ID
@@ -325,7 +323,7 @@ export default function App() {
 							key={id}
 							style={{
 								opacity: id === myId ? 0.9 : 0.75,
-								transform: id === myId ? "scale(1.1)" : "scale(1.0)",
+								transform: id === myId ? "scale(1)" : "scale(1)",
 								filter: id === myId ? "drop-shadow(0 0 5px yellow)" : "none",
 								transition: "opacity 0.1s linear, transform 0.1s linear",								
 							}}

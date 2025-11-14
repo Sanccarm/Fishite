@@ -39,7 +39,7 @@ export function Ocean({ children, floorItems = defaultFloorItems }: OceanProps) 
 					<div className="sand-texture"></div>
 					<Floor items={floorItems} />
 				</div>
-			{children}		
+			{children}
 		</>
 	);
 }

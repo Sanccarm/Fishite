@@ -15,7 +15,7 @@ const io = new Server(server, {
   cors: { origin: "*" }, // allow all origins
 });
 
-const players = new Map();
+const players = new Map(); // this nees to be sent to RTC firebase eventually
 
 // Bubbles: server-authoritative bubble state
 const bubbles = new Map(); // id -> { id, x, y, vy, ownerId, createdAt }
@@ -33,10 +33,10 @@ const bubbleConfig = {
   maxBubbles: 500,
 };
 
-// Chat messages: ephemeral storage
+// Chat messages
 const messages = new Map(); // messageId -> { id, senderId, senderNickname, text, timestamp }
 const messageConfig = {
-  ttlMs: 6000, // messages fade after 6 seconds
+  ttlMs: 10000, // messages fade after 10 seconds
 };
 
 io.on("connection", (socket) => {
