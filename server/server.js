@@ -5,8 +5,49 @@ import { filterText } from "./profanityFilter.js";
 
 const app = express();
 
+app.use(express.json());
+
 // Optional: simple HTTP endpoint for health checks or root
 app.get("/", (req, res) => res.send("🐠 Fish server is alive!"));
+
+// Pub/Sub push endpoint for shark events
+let sharkEventOngoing = false;
+app.post("/pubsub/shark-event", (req, res) => {
+  try {
+    const { message } = req.body;
+    if (!message || !message.data) {
+      console.error("Invalid Pub/Sub message format:", req.body);
+      return res.status(400).send("Invalid message format");
+    }
+
+    // Decode base64 message data
+    let messageData;
+    try {
+      const decodedData = Buffer.from(message.data, "base64").toString("utf-8");
+      messageData = JSON.parse(decodedData);
+    } catch (error) {
+      console.error("Error decoding message data:", error);
+      return res.status(400).send("Invalid message data");
+    }
+
+    if (sharkEventOngoing) {
+      console.log("Attpemted shark event trigger... Shark event already ongoing, skipping...");
+      res.status(202).send("Event already in progress");
+      return null;
+    }
+
+    sharkEventOngoing = true;
+    console.log(message.publishTime, "Event triggered:", messageData.event);
+    console.log("Triggered by:", message.attributes || {});
+    // Return 200 to acknowledge the message
+    res.status(200).send("OK");
+    handleSharkEvent();
+    sharkEventOngoing = false;
+  } catch (error) {
+    console.error("Error processing shark event:", error);
+    res.status(500).send("Internal server error");
+  }
+});
 
 // Use Node HTTP server with Express
 const server = http.createServer(app);
@@ -14,6 +55,11 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: "*" }, // allow all origins
 });
+
+function handleSharkEvent() {
+  // Broadcast shark event to all connected Socket.IO clients
+  io.emit("sharkEvent");
+}
 
 const players = new Map(); // this nees to be sent to RTC firebase eventually
 
