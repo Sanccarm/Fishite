@@ -42,6 +42,7 @@ export default function App() {
 	const keysPressed = useRef(new Set<string>());
 	const fishSize = 50;
 	const [bubbles, setBubbles] = useState<Record<string, { x: number; y: number }>>({});
+	const [debugMode, setDebugMode] = useState(false);
 	
 
 	// Redirect to start page if nickname or character is missing
@@ -154,6 +155,13 @@ export default function App() {
 			const rawKey = e.key;
 			const key = rawKey.startsWith("Arrow") ? rawKey : rawKey.toLowerCase();
 			keysPressed.current.add(key);
+
+			// Toggle debug mode on backslash press
+			if (rawKey === "\\" || rawKey === "Backslash") {
+				e.preventDefault();
+				setDebugMode((prev) => !prev);
+				return;
+			}
 
 			// Emit bubble on space press but avoid interfering with focused form controls
 			const isSpace = rawKey === " " || rawKey === "Spacebar" || rawKey.toLowerCase() === "space";
@@ -334,8 +342,8 @@ export default function App() {
 								clientId={id}
 								character={playerData.character || undefined}
 								nickname={playerData.nickname || undefined}
-								size={50}
 								direction={playerData.direction as 'left' | 'right'}
+								debug={debugMode}
 							/>
 							{/* Render chat messages above this fish */}
 							{Object.entries(messages)
@@ -353,9 +361,9 @@ export default function App() {
 						</div>
 					))}
 
-						{Object.entries(bubbles).map(([id, b]) => (
-							<Bubble key={id} id={id} x={b.x} y={b.y} size={12} />
-						))}
+				{Object.entries(bubbles).map(([id, b]) => (
+					<Bubble key={id} id={id} x={b.x} y={b.y} size={12} />
+				))}
 			</Ocean>
 		</div>
 	)

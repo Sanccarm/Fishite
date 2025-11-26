@@ -25,7 +25,6 @@ const CHARACTERS = [
 	"fish_swim_3",
 	"fish_swim-7",
 	"humpback_salmon",
-	"shark",
 	"sunfish",
 	"fred"
 ];
