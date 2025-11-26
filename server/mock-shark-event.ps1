@@ -12,7 +12,7 @@ $body = @"
   "message": {
     "data": "$encodedData",
     "attributes": {
-      "source": "cloud-scheduler",
+      "source": "manual-trigger",
       "job": "shark-event-job"
     },
     "messageId": "mock-1234567890",

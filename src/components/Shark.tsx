@@ -32,38 +32,18 @@ export function Shark({ x = 100, y = 100, direction = 'right', debug = false }: 
 				}}
 			/>
 			{debug && (
-				<>
-					<div
-						style={{
-							position: 'absolute',
-							left: '50%',
-							top: '50%',
-							transform: 'translate(-50%, -50%)',
-							width: `${hitboxSize}px`,
-							height: `${hitboxSize}px`,
-							border: '2px solid red',
-							boxSizing: 'border-box',
-							pointerEvents: 'none',
-						}}
-					/>
-					<div
-						style={{
-							position: 'absolute',
-							top: '50%',
-							left: '50%',
-							transform: 'translate(-50%, calc(-50% - 20px))',
-							fontSize: '10px',
-							color: 'red',
-							backgroundColor: 'rgba(0, 0, 0, 0.7)',
-							padding: '2px 4px',
-							borderRadius: '2px',
-							whiteSpace: 'nowrap',
-							pointerEvents: 'none',
-						}}
-					>
-						{hitboxSize}×{hitboxSize}
-					</div>
-				</>
+				<div
+					style={{
+						position: 'absolute',
+						left: '50%',
+						top: '50%',
+						transform: 'translate(-50%, -50%)',
+						width: `${hitboxSize}px`,
+						height: `${hitboxSize}px`,
+						border: '2px solid red',
+						boxSizing: 'border-box',
+						pointerEvents: 'none',
+					}}/>
 			)}
 		</div>
 	);

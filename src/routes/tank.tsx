@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 import { Ocean } from "../components/Ocean";
 import { Fish } from "../components/Fish";
+import { Shark } from "../components/Shark";
 import { ChatMessage } from "../components/ChatMessage";
 import Bubble from "../components/ui/bubble";
 
@@ -43,6 +44,7 @@ export default function App() {
 	const fishSize = 50;
 	const [bubbles, setBubbles] = useState<Record<string, { x: number; y: number }>>({});
 	const [debugMode, setDebugMode] = useState(false);
+	const [shark, setShark] = useState<{ x: number; y: number; active: boolean } | null>(null);
 	
 
 	// Redirect to start page if nickname or character is missing
@@ -142,6 +144,25 @@ export default function App() {
 				const copy = { ...prev };
 				delete copy[id];
 				return copy;
+			});
+		});
+
+		// Shark events
+		socket.on("sharkEventStart", ({ x, y }: { x: number; y: number }) => {
+			setShark({ x, y, active: true });
+		});
+
+		socket.on("sharkPosition", ({ x, y }: { x: number; y: number }) => {
+			setShark((prev) => {
+				if (!prev) return null;
+				return { ...prev, x, y };
+			});
+		});
+
+		socket.on("sharkEventEnd", () => {
+			setShark((prev) => {
+				if (!prev) return null;
+				return { ...prev, active: false };
 			});
 		});
 
@@ -364,6 +385,10 @@ export default function App() {
 				{Object.entries(bubbles).map(([id, b]) => (
 					<Bubble key={id} id={id} x={b.x} y={b.y} size={12} />
 				))}
+
+				{shark?.active && (
+					<Shark x={shark.x} y={shark.y} direction="right" debug={debugMode} />
+				)}
 			</Ocean>
 		</div>
 	)

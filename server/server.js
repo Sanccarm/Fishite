@@ -41,8 +41,7 @@ app.post("/pubsub/shark-event", (req, res) => {
     console.log("Triggered by:", message.attributes || {});
     // Return 200 to acknowledge the message
     res.status(200).send("OK");
-    handleSharkEvent();
-    sharkEventOngoing = false;
+    startSharkEvent();
   } catch (error) {
     console.error("Error processing shark event:", error);
     res.status(500).send("Internal server error");
@@ -56,12 +55,67 @@ const io = new Server(server, {
   cors: { origin: "*" }, // allow all origins
 });
 
-function handleSharkEvent() {
-  // Broadcast shark event to all connected Socket.IO clients
-  io.emit("sharkEvent");
+function startSharkEvent() {
+  if (sharkActive) {
+    console.log("Shark event already active, skipping...");
+    return;
+  }
+
+  // Initialize shark position and velocity
+  sharkPosition = { x: sharkConfig.startX, y: sharkConfig.yPosition };
+  sharkVelocity = { x: 0, y: 0 };
+  sharkActive = true;
+
+  // Emit shark event start with initial position
+  io.emit("sharkEventStart", { x: sharkPosition.x, y: sharkPosition.y });
+  console.log("Shark event started at", sharkPosition);
+}
+
+function updateShark(dt) {
+  if (!sharkActive) return;
+
+  // Apply acceleration toward target speed (moving right)
+  if (sharkVelocity.x < sharkConfig.targetSpeed) {
+    sharkVelocity.x += sharkConfig.acceleration * dt;
+    sharkVelocity.x = Math.min(sharkVelocity.x, sharkConfig.targetSpeed);
+  }
+
+  // Apply friction
+  sharkVelocity.x *= sharkConfig.friction;
+
+  // Update position based on velocity
+  sharkPosition.x += sharkVelocity.x * dt;
+
+  // Broadcast position update
+  io.emit("sharkPosition", { x: Math.round(sharkPosition.x), y: Math.round(sharkPosition.y) });
+
+  // Check if shark has reached end position
+  if (sharkPosition.x >= sharkConfig.endX) {
+    // End shark event
+    sharkActive = false;
+    sharkEventOngoing = false;
+    io.emit("sharkEventEnd");
+    console.log("Shark event ended");
+  }
 }
 
 const players = new Map(); // this nees to be sent to RTC firebase eventually
+
+// Shark state
+let sharkPosition = { x: -100, y: 300 }; // off-screen initially
+let sharkVelocity = { x: 0, y: 0 };
+let sharkActive = false;
+
+// Shark configuration
+const sharkConfig = {
+  targetSpeed: 1000, // px per second (target velocity)
+  acceleration: 100, // px per second squared
+  friction: 0.99, // friction coefficient
+  yPosition: 300, // fixed Y position
+  startX: -100, // off-screen left
+  endX: 3000, // off-screen right
+  updateIntervalMs: 50, // same as bubble tick rate
+};
 
 // Bubbles: server-authoritative bubble state
 const bubbles = new Map(); // id -> { id, x, y, vy, ownerId, createdAt }
@@ -213,26 +267,31 @@ io.on("connection", (socket) => {
 // Use dynamic port from Cloud Run or fallback to 8080 locally
 const port = process.env.PORT || 8080;
  
- // Bubble tick loop: update positions and broadcast
+ // Game tick loop: update bubbles and shark positions
  let lastTick = Date.now();
  setInterval(() => {
    const now = Date.now();
    const dt = (now - lastTick) / 1000; // seconds
    lastTick = now;
-   if (bubbles.size === 0) return;
- 
-   const updates = [];
-   for (const [id, b] of bubbles.entries()) {
-     b.y += b.vy * dt;
-     // expire by ttl or off-screen (y < -100)
-     if (now - b.createdAt > bubbleConfig.ttlMs || b.y < -100) {
-       bubbles.delete(id);
-       io.emit("bubbleRemoved", { id });
-     } else {
-       updates.push({ id: b.id, x: Math.round(b.x), y: Math.round(b.y) });
+
+   // Update shark (physics-based movement)
+   updateShark(dt);
+
+   // Update bubbles
+   if (bubbles.size > 0) {
+     const updates = [];
+     for (const [id, b] of bubbles.entries()) {
+       b.y += b.vy * dt;
+       // expire by ttl or off-screen (y < -100)
+       if (now - b.createdAt > bubbleConfig.ttlMs || b.y < -100) {
+         bubbles.delete(id);
+         io.emit("bubbleRemoved", { id });
+       } else {
+         updates.push({ id: b.id, x: Math.round(b.x), y: Math.round(b.y) });
+       }
      }
+     if (updates.length) io.emit("bubblesUpdate", updates);
    }
-   if (updates.length) io.emit("bubblesUpdate", updates);
  }, bubbleConfig.tickMs);
 
  // Message cleanup loop: remove expired messages

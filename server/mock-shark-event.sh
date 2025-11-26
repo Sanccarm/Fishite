@@ -14,7 +14,7 @@ response=$(curl -s -w "\n%{http_code}" -X POST \
     "message": {
       "data": "'"$encoded_data"'",
       "attributes": {
-        "source": "cloud-scheduler",
+        "source": "manual-trigger",
         "job": "shark-event-job"
       },
       "messageId": "mock-1234567890",
