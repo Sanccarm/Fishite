@@ -28,7 +28,7 @@ try {
         -ContentType "application/json" `
         -Body $body
     
-    Write-Host "Response: $($response.StatusCode) $($response.StatusDescription)"
+    Write-Host "Response: $($response.StatusCode) $($response.Content)"
 } catch {
     if ($_.Exception.Response) {
         $statusCode = $_.Exception.Response.StatusCode.value__
