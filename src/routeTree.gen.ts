@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TestRouteImport } from './routes/test'
 import { Route as TankRouteImport } from './routes/tank'
 import { Route as StartRouteImport } from './routes/start'
+import { Route as IndexRouteImport } from './routes/index'
 
 const TestRoute = TestRouteImport.update({
   id: '/test',
@@ -28,32 +29,41 @@ const StartRoute = StartRouteImport.update({
   path: '/start',
   getParentRoute: () => rootRouteImport,
 } as any)
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
+  '/': typeof IndexRoute
   '/start': typeof StartRoute
   '/tank': typeof TankRoute
   '/test': typeof TestRoute
 }
 export interface FileRoutesByTo {
+  '/': typeof IndexRoute
   '/start': typeof StartRoute
   '/tank': typeof TankRoute
   '/test': typeof TestRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
   '/start': typeof StartRoute
   '/tank': typeof TankRoute
   '/test': typeof TestRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/start' | '/tank' | '/test'
+  fullPaths: '/' | '/start' | '/tank' | '/test'
   fileRoutesByTo: FileRoutesByTo
-  to: '/start' | '/tank' | '/test'
-  id: '__root__' | '/start' | '/tank' | '/test'
+  to: '/' | '/start' | '/tank' | '/test'
+  id: '__root__' | '/' | '/start' | '/tank' | '/test'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  IndexRoute: typeof IndexRoute
   StartRoute: typeof StartRoute
   TankRoute: typeof TankRoute
   TestRoute: typeof TestRoute
@@ -82,10 +92,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StartRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
+  IndexRoute: IndexRoute,
   StartRoute: StartRoute,
   TankRoute: TankRoute,
   TestRoute: TestRoute,

@@ -40,6 +40,12 @@ function App() {
 	const handleEnterTank = () => {
 		if (!nickname.trim() || !character) return;
 		
+		// Generate and store UID if it doesn't exist
+		if (!localStorage.getItem("playerUid")) {
+			const newUid = crypto.randomUUID();
+			localStorage.setItem("playerUid", newUid);
+		}
+		
 		// Store in localStorage
 		localStorage.setItem("playerNickname", nickname.trim());
 		localStorage.setItem("playerCharacter", character);

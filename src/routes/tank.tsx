@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 import { Ocean } from "../components/Ocean";
@@ -8,18 +8,27 @@ import { ChatMessage } from "../components/ChatMessage";
 import Bubble from "../components/ui/bubble";
 
 export const Route = createFileRoute("/tank")({
+	beforeLoad: () => {
+		const uid = localStorage.getItem("playerUid");
+		
+		if (!uid) {
+			// No UID found, redirect to start page
+			throw redirect({
+				to: "/start",
+			});
+		}
+	},
 	component: App,
 });
 
-// Get or generate uid from localStorage
-function getOrCreateUid(): string {
+// Get uid from localStorage (should always exist due to beforeLoad redirect)
+function getUid(): string {
 	const stored = localStorage.getItem("playerUid");
-	if (stored) {
-		return stored;
+	if (!stored) {
+		// This shouldn't happen due to beforeLoad, but handle gracefully
+		throw new Error("UID not found in localStorage");
 	}
-	const newUid = crypto.randomUUID();
-	localStorage.setItem("playerUid", newUid);
-	return newUid;
+	return stored;
 }
 
 export default function App() {
@@ -36,7 +45,7 @@ export default function App() {
 	const [myId, setMyId] = useState<string | null>(null);
 	const nickname = localStorage.getItem("playerNickname");
 	const character = localStorage.getItem("playerCharacter");
-	const uid = getOrCreateUid();
+	const uid = getUid();
 	const navigate = useNavigate();
 
 	// Chat state
