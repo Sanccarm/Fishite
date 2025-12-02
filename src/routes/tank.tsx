@@ -11,6 +11,17 @@ export const Route = createFileRoute("/tank")({
 	component: App,
 });
 
+// Get or generate uid from localStorage
+function getOrCreateUid(): string {
+	const stored = localStorage.getItem("playerUid");
+	if (stored) {
+		return stored;
+	}
+	const newUid = crypto.randomUUID();
+	localStorage.setItem("playerUid", newUid);
+	return newUid;
+}
+
 export default function App() {
 	// biome-ignore lint/suspicious/noExplicitAny: <>
 	const socketRef = useRef<any>(null);
@@ -25,6 +36,7 @@ export default function App() {
 	const [myId, setMyId] = useState<string | null>(null);
 	const nickname = localStorage.getItem("playerNickname");
 	const character = localStorage.getItem("playerCharacter");
+	const uid = getOrCreateUid();
 	const navigate = useNavigate();
 
 	// Chat state
@@ -41,6 +53,9 @@ export default function App() {
     
 
 	const keysPressed = useRef(new Set<string>());
+	const posRef = useRef({ x: 100, y: 100 });
+	const directionRef = useRef<'left' | 'right'>('right');
+	const posInitialized = useRef(false);
 	const fishSize = 50;
 	const [bubbles, setBubbles] = useState<Record<string, { x: number; y: number }>>({});
 	const [debugMode, setDebugMode] = useState(false);
@@ -65,9 +80,9 @@ export default function App() {
 
 		socket.on("connect", () => {
 			console.log("Connected to fish server 🐠");
-			// Send player info (nickname and character) to server
+			// Send player info (uid, nickname and character) to server
 			if (nickname && character) {
-				socket.emit("playerInfo", { nickname, character });
+				socket.emit("playerInfo", { uid, nickname, character });
 			}
 		});
 
@@ -78,7 +93,14 @@ export default function App() {
 			direction?: 'left' | 'right';
 		}>) => {
 			setPlayers(playersMap);
-			setMyId(socket.id ?? null);
+			setMyId(uid);
+			// Sync local position with server position if available
+			if (uid && playersMap[uid]?.position) {
+				posRef.current.x = playersMap[uid].position.x;
+				posRef.current.y = playersMap[uid].position.y;
+				directionRef.current = playersMap[uid].direction || 'right';
+				posInitialized.current = true;
+			}
 		})
 
 		socket.on("playerJoined", ({ id, position, nickname, character, direction }) => {
@@ -171,7 +193,7 @@ export default function App() {
 		return () => {
 			socket.disconnect();
 		}
-	}, []);
+	}, [uid, nickname, character]);
 
 	// Hide warning after 2 seconds
 	useEffect(() => {
@@ -240,11 +262,11 @@ export default function App() {
 
 		// Use refs for smooth updates without stale state
 		const velocityRef = { x: 0, y: 0 };
-		const pos = { x: 100, y: 100 };
+		const pos = posRef.current;
 		const ACCELERATION = 1.5; // must be greater than 0
 		const SPEED = 7;
 		const FRICTION = 0.9; // must be less than 1
-		let direction = 'right';
+		let direction = directionRef.current;
 
 		const move = () => {
 			
@@ -272,9 +294,11 @@ export default function App() {
 
 			// Update direction only when there's significant movement
 			if (velocityRef.x < -0.1) {
-				direction = 'left'; 
+				direction = 'left';
+				directionRef.current = 'left';
 			} else if (velocityRef.x > 0.1) {
-				direction = 'right'; 
+				direction = 'right';
+				directionRef.current = 'right';
 			}
 
 			// Boundaries
@@ -289,7 +313,8 @@ export default function App() {
 
 			// Update socket position to server
 			// Server will send back direction in playerMoved event
-			if (socketRef.current && myId) {
+			// Only send updates after we've received initial position from server
+			if (socketRef.current && myId && posInitialized.current) {
 				socketRef.current.emit("move", pos, direction);
 				setPlayers((prev) => {
 					const current = prev[myId];

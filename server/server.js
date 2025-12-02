@@ -250,7 +250,8 @@ function updateShark(dt) {
   }
 }
 
-const players = new Map(); // this nees to be sent to RTC firebase eventually
+const players = new Map(); // uid -> {socketId, position, nickname, character, direction}
+const activeSockets = new Map(); // socket.id -> uid (tracks which sockets are currently active)
 
 // Shark state
 let sharkPosition = { x: -100, y: 300 }; // off-screen initially (will be set properly in startSharkEvent)
@@ -271,7 +272,7 @@ const sharkConfig = {
 
 // Bubbles: server-authoritative bubble state
 const bubbles = new Map(); // id -> { id, x, y, vy, ownerId, createdAt }
-const lastBubbleAt = new Map(); // socketId -> timestamp
+const lastBubbleAt = new Map(); // uid -> timestamp
 
 function makeBubbleId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -295,53 +296,90 @@ io.on("connection", (socket) => {
 
   if (!socket.id) return;
 
-  const position = { x: 100, y: 100 };
-  const playerData = { position, nickname: null, character: null , direction: 'right' };
-  players.set(socket.id, playerData);
-
-  // Handle player info (nickname and character)
-  socket.on("playerInfo", ({ nickname, character }) => {
-    if (!socket.id) return;
-    const data = players.get(socket.id);
-    if (data) {
-      data.nickname = filterText(nickname);
-      data.character = character;
-      players.set(socket.id, data);
-      
-      console.log(`${data.nickname} joined: ${socket.id}`);
-      
-      // Broadcast updated player info to others
-      socket.broadcast.emit("playerJoined", {
-        id: socket.id,
-        position: data.position,
-        nickname: data.nickname,
-        character: data.character,
-        direction: data.direction,
-      });
+  // Handle player info (uid, nickname and character)
+  socket.on("playerInfo", ({ uid, nickname, character }) => {
+    if (!socket.id || !uid) return;
+    
+    // Check if uid already exists (user reconnecting)
+    let existingPlayer = null;
+    let direction = 'right';
+    let position = { x: 100, y: 100 };
+    let oldSocketId = null;
+    const filteredNickname = filterText(nickname);
+    if (players.has(uid)) {
+      existingPlayer = players.get(uid);
+      //console.log(`Reconnecting player ${uid}: existing character=${existingPlayer.character}, new character=${character}, existing nickname="${existingPlayer.nickname}", new nickname="${filteredNickname}"`);
+      // Preserve position and direction only if character and nickname haven't changed
+      if (existingPlayer.character === character && existingPlayer.nickname === filteredNickname) {
+        position = existingPlayer.position;
+        direction = existingPlayer.direction;
+        //console.log(`Preserving position: ${position.x}, ${position.y} and direction: ${direction}`);
+      } else {
+        //console.log(`Character or nickname changed, resetting position to 100,100`);
+      }
+      oldSocketId = existingPlayer.socketId;
     }
-  });
-
-  // Send full list of current players
-  const playersMap = {};
-  for (const [id, data] of players.entries()) {
-    playersMap[id] = {
-      position: data.position,
-      nickname: data.nickname,
-      character: data.character,
-      direction: data.direction,
+    
+    // Create new player entry with uid as key
+    const playerData = {
+      socketId: socket.id,
+      position: position,
+      nickname: filteredNickname,
+      character: character,
+      direction: direction
     };
-  }
-  socket.emit("init", playersMap);
+    players.set(uid, playerData);
+    activeSockets.set(socket.id, uid);
+    
+    // Now disconnect old socket if it exists
+    if (oldSocketId) {
+      const oldSocket = io.sockets.sockets.get(oldSocketId);
+      if (oldSocket) {
+        oldSocket.disconnect();
+      }
+      // Clean up old mapping
+      activeSockets.delete(oldSocketId);
+    }
+    
+    console.log(`${playerData.nickname} joined | uid: ${uid} | socket: ${socket.id}`);
+    
+    // Send full list of current active players (only those with active sockets)
+    const playersMap = {};
+    for (const [socketId, playerUid] of activeSockets.entries()) {
+      const data = players.get(playerUid);
+      if (data) {
+        playersMap[playerUid] = {
+          position: data.position,
+          nickname: data.nickname,
+          character: data.character,
+          direction: data.direction,
+        };
+      }
+    }
+    socket.emit("init", playersMap);
+    
+    // Broadcast updated player info to others
+    socket.broadcast.emit("playerJoined", {
+      id: uid,
+      position: playerData.position,
+      nickname: playerData.nickname,
+      character: playerData.character,
+      direction: playerData.direction,
+    });
+  });
 
   // Handle player movement
   socket.on("move", (position, direction) => {
     if (!socket.id) return;
-    const data = players.get(socket.id);
+    const uid = activeSockets.get(socket.id);
+    if (!uid) return; // Player not yet registered
+    const data = players.get(uid);
+    if (!data) return;
     data.position = position;
     data.direction = direction;
-    players.set(socket.id, data);
+    players.set(uid, data);
     socket.broadcast.emit("playerMoved", {
-      id: socket.id,
+      id: uid,
       position: data.position,
       direction: data.direction,
     });
@@ -350,24 +388,26 @@ io.on("connection", (socket) => {
   // Handle bubble creation from client (space press)
   socket.on("bubbleCreate", ({ x, y }) => {
     if (!socket.id) return;
+    const uid = activeSockets.get(socket.id);
+    if (!uid) return; // Player not yet registered
     const now = Date.now();
-    const last = lastBubbleAt.get(socket.id) || 0;
+    const last = lastBubbleAt.get(uid) || 0;
     if (now - last < bubbleConfig.perPlayerCooldownMs) return; // cooldown
     if (bubbles.size >= bubbleConfig.maxBubbles) return; // global cap
 
     // Basic per-player live bubble cap (optional): max 20
     let playerCount = 0;
-    for (const b of bubbles.values()) if (b.ownerId === socket.id) playerCount++;
+    for (const b of bubbles.values()) if (b.ownerId === uid) playerCount++;
     if (playerCount >= 20) return;
 
-    lastBubbleAt.set(socket.id, now);
+    lastBubbleAt.set(uid, now);
     const id = makeBubbleId();
     const bubble = {
       id,
       x: Number(x) || 0,
       y: Number(y) || 0,
       vy: bubbleConfig.defaultVy,
-      ownerId: socket.id,
+      ownerId: uid,
       createdAt: now,
     };
     bubbles.set(id, bubble);
@@ -384,14 +424,16 @@ io.on("connection", (socket) => {
   // Handle chat message
   socket.on("chatMessage", ({ text }) => {
     if (!socket.id || !text || typeof text !== "string") return;
-    const playerData = players.get(socket.id);
+    const uid = activeSockets.get(socket.id);
+    if (!uid) return; // Player not yet registered
+    const playerData = players.get(uid);
     if (!playerData || !playerData.nickname) return;
 
     const messageId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     const filteredText = filterText(text.trim().substring(0, 200)); // Filter and max 200 chars
     const message = {
       id: messageId,
-      senderId: socket.id,
+      senderId: uid,
       senderNickname: playerData.nickname,
       senderCharacter: playerData.character,
       text: filteredText,
@@ -409,10 +451,18 @@ io.on("connection", (socket) => {
   // Handle disconnect
   socket.on("disconnect", () => {
     if (!socket.id) return;
-    let nickname = players.get(socket.id).nickname;
-    console.log(`${nickname} left: ${socket.id}`);
-    players.delete(socket.id);
-    io.emit("playerLeft", socket.id);
+    const uid = activeSockets.get(socket.id);
+    if (!uid) return; // Player not yet registered
+    const playerData = players.get(uid);
+    // Only remove socket from activeSockets, don't delete player data
+    // This allows player data to persist for reconnection
+    if (playerData && playerData.socketId === socket.id) {
+      console.log(`${playerData.nickname} disconnected: ${uid}`);
+      // Clear the socketId in player data to mark as disconnected
+      playerData.socketId = null;
+      io.emit("playerLeft", uid);
+    }
+    activeSockets.delete(socket.id);
   });
 });
 
