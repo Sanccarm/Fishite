@@ -77,7 +77,6 @@ export default function App() {
 	const [debugMode, setDebugMode] = useState(false);
 	const [shark, setShark] = useState<{ x: number; y: number; active: boolean } | null>(null);
 	const [showWarning, setShowWarning] = useState(false);
-	const [coinCount, setCoinCount] = useState<number>(0);
 	const prevCoinCountRef = useRef<number>(0);
 	
 
@@ -115,7 +114,6 @@ export default function App() {
 		}) => {
 			setPlayers(data.playersMap);
 			setMyId(uid);
-			setCoinCount(data.coinCount);
 			prevCoinCountRef.current = data.coinCount;
 			// Dispatch custom event to update Header
 			window.dispatchEvent(new CustomEvent('coinUpdate', { detail: { coinCount: data.coinCount } }));
@@ -226,7 +224,6 @@ export default function App() {
 			const prevCount = prevCoinCountRef.current;
 			const isIncrease = coinCount > prevCount;
 			prevCoinCountRef.current = coinCount;
-			setCoinCount(coinCount);
 			// Dispatch custom event to update Header with animation trigger
 			window.dispatchEvent(new CustomEvent('coinUpdate', { detail: { coinCount, animate: true, isIncrease } }));
 		});
