@@ -303,3 +303,47 @@ code {
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes coinPulse {
+  0% {
+    transform: scale(1) rotate(0deg);
+  }
+  50% {
+    transform: scale(1.5) rotate(12deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes coinFlashGreen {
+  0% {
+    color: inherit !important;
+  }
+  50% {
+    text-shadow: 0 0 12px rgb(7, 255, 86), 0 0 20px rgb(4, 253, 41);
+  }
+  100% {
+    color: inherit !important;
+  }
+}
+
+@keyframes coinFlashRed {
+  0% {
+    color: inherit !important;
+  }
+  50% {
+    text-shadow: 0 0 12px rgb(255, 6, 6), 0 0 20px rgb(249, 5, 5);
+  }
+  100% {
+    color: inherit !important;
+  }
+}
+
+.coin-flash-green {
+  animation: coinFlashGreen 0.6s ease-in-out;
+}
+
+.coin-flash-red {
+  animation: coinFlashRed 0.6s ease-in-out;
+}

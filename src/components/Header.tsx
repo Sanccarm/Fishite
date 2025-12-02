@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useAudio } from "../lib/AudioProvider";
 import { ChatInputModal } from "./ChatInputModal";
@@ -10,6 +10,9 @@ export default function Header() {
 	const [musicInitialized, setMusicInitialized] = useState(false)
 	const [volume, setVolumeState] = useState(1)
 	const [isChatOpen, setIsChatOpen] = useState(false);
+	const [coinCount, setCoinCount] = useState<number>(0);
+	const [isAnimating, setIsAnimating] = useState(false);
+	const [animationType, setAnimationType] = useState<'increase' | 'decrease' | null>(null);
 
 	const handleToggle = async () => {
 		if (!musicInitialized) {
@@ -32,6 +35,30 @@ export default function Header() {
 		window.dispatchEvent(new CustomEvent('sendChat', { detail: { text } }));
 	}
 
+	// Listen for coin updates from tank.tsx
+	useEffect(() => {
+		const handleCoinUpdate = (event: Event) => {
+			const customEvent = event as CustomEvent<{ coinCount: number; animate?: boolean; isIncrease?: boolean }>;
+			//console.log('Coin update received:', customEvent.detail);
+			setCoinCount(customEvent.detail.coinCount);
+			if (customEvent.detail.animate && customEvent.detail.isIncrease !== undefined) {
+				const animType = customEvent.detail.isIncrease ? 'increase' : 'decrease';
+				//console.log('Setting animation:', animType);
+				setAnimationType(animType);
+				setIsAnimating(true);
+				// Reset animation after it completes
+				setTimeout(() => {
+					//console.log('Resetting animation');
+					setIsAnimating(false);
+					setAnimationType(null);
+				}, 600);
+			}
+		};
+
+		window.addEventListener('coinUpdate', handleCoinUpdate);
+		return () => window.removeEventListener('coinUpdate', handleCoinUpdate);
+	}, []);
+
 	return (
 		<div className="bg-primary w-full border-border border-b">
 			<div className="flex items-center justify-between mx-auto w-full px-4 py-2">
@@ -39,6 +66,23 @@ export default function Header() {
 					<h1 className="font-bold text-4xl tracking-tighter text-secondary">Fishite</h1>
 				</Link>
 				<div className="flex items-center gap-3">
+					{/* Coin Display */}
+					<div className="flex items-center gap-2 px-3 py-1 bg-secondary/20 rounded-lg">
+						<img
+							src="/coin.png"
+							alt="Coin"
+							className={`w-6 h-6 transition-transform duration-300 ${isAnimating ? 'scale-150 rotate-12' : ''}`}
+							style={{
+								animation: isAnimating ? 'coinPulse 0.6s ease-in-out' : 'none',
+							}}
+						/>
+						<span 
+							key={`coin-${coinCount}-${isAnimating ? animationType : 'static'}`}
+							className={`font-bold text-secondary text-lg ${isAnimating && animationType === 'increase' ? 'coin-flash-green' : ''} ${isAnimating && animationType === 'decrease' ? 'coin-flash-red' : ''}`}
+						>
+							{coinCount}
+						</span>
+					</div>
 					<ChatInputModal
 						isOpen={isChatOpen}
 						onSend={handleSendChat}

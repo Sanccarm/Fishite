@@ -1,63 +1,80 @@
+// ============================================================================
+// IMPORTS
+// ============================================================================
 import { Server } from "socket.io";
 import http from "http";
 import express from "express";
 import { filterText } from "./profanityFilter.js";
 
-const app = express();
+// ============================================================================
+// CONFIGURATION
+// ============================================================================
+// Google Cloud Storage configuration
+// TODO: Replace with actual bucket URL
+const COINS_BUCKET_URL = "";
 
-app.use(express.json());
+// Shark configuration
+const sharkConfig = {
+  maxXVelocity: 600, // px per second (target velocity)
+  maxYVelocity: 700, // px per second (target velocity)
+  maxYPosition: 550,
+  acceleration: 500, // px per second squared
+  friction: 0.99, // friction coefficient
+  startX: -100, // off-screen left
+  endX: 3000, // off-screen right
+  updateIntervalMs: 50, // same as bubble tick rate
+};
 
-// Optional: simple HTTP endpoint for health checks or root
-app.get("/", (req, res) => res.send("🐠 Fish server is alive!"));
+const bubbleConfig = {
+  tickMs: 50, // 20Hz
+  defaultVy: -60, // px per second (upwards)
+  ttlMs: 8000, // max lifetime
+  perPlayerCooldownMs: 300, // cooldown between bubbles per player
+  maxBubbles: 500,
+};
 
-// Pub/Sub push endpoint for shark events
-let sharkEventOngoing = false;
-app.post("/pubsub/shark-event", (req, res) => {
-  try {
-    const { message } = req.body;
-    if (!message || !message.data) {
-      console.error("Invalid Pub/Sub message format:", req.body);
-      return res.status(400).send("Invalid message format");
-    }
+const messageConfig = {
+  ttlMs: 10000, // messages fade after 10 seconds
+};
 
-    // Decode base64 message data
-    let messageData;
-    try {
-      const decodedData = Buffer.from(message.data, "base64").toString("utf-8");
-      messageData = JSON.parse(decodedData);
-    } catch (error) {
-      console.error("Error decoding message data:", error);
-      return res.status(400).send("Invalid message data");
-    }
+// Use dynamic port from Cloud Run or fallback to 8080 locally
+const port = process.env.PORT || 8080;
 
-    if (sharkEventOngoing) {
-      console.log("Attpemted shark event trigger... Shark event already ongoing, skipping...");
-      res.status(202).send("Event already in progress");
-      return null;
-    }
+// ============================================================================
+// GLOBAL STATE
+// ============================================================================
+const players = new Map(); // uid -> {socketId, position, nickname, character, direction}
+const activeSockets = new Map(); // socket.id -> uid (tracks which sockets are currently active)
+const coins = new Map(); // uid -> coinCount (persists coins by uid)
 
-    sharkEventOngoing = true;
-    console.log(message.publishTime, "Event triggered:", messageData.event);
-    console.log("Triggered by:", message.attributes || {});
-    // Return 200 to acknowledge the message
-    res.status(200).send("OK");
-    startSharkEvent();
-  } catch (error) {
-    console.error("Error processing shark event:", error);
-    res.status(500).send("Internal server error");
-  }
-});
-
-// Use Node HTTP server with Express
-const server = http.createServer(app);
-
-const io = new Server(server, {
-  cors: { origin: "*" }, // allow all origins
-});
-
-let behaviors = ['randomYVelocity', 'randomXandYVelocity', 'signwave', 'loopDloop', 'teleport'];
+// Shark state
+let sharkPosition = { x: -100, y: 300 }; // off-screen initially (will be set properly in startSharkEvent)
+let sharkVelocity = { x: 0, y: 0 };
+let sharkActive = false;
+let behaviors = ['randomYVelocity', 'randomXandYVelocity', 'signwave', 'loopDloop', 'teleportY'];
 let movementBehavior = 'default';
+let signDirection = 'up';
+let updateBuffer = 0; //use this buffer to simluate a delay in the movement changes
+let loopAngle = 0; // persistent angle for loopDloop
+let sharkEventOngoing = false;
 
+// Bubbles: server-authoritative bubble state
+const bubbles = new Map(); // id -> { id, x, y, vy, ownerId, createdAt }
+const lastBubbleAt = new Map(); // uid -> timestamp
+
+// Chat messages
+const messages = new Map(); // messageId -> { id, senderId, senderNickname, text, timestamp }
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+function makeBubbleId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+// ============================================================================
+// SHARK FUNCTIONS
+// ============================================================================
 function startSharkEvent() {
   if (sharkActive) {
     console.log("Shark event already active, skipping...");
@@ -78,9 +95,6 @@ function startSharkEvent() {
   console.log("Shark event started at", sharkPosition);
 }
 
-let signDirection = 'up';
-let updateBuffer = 0; //use this buffer to simluate a delay in the movement changes
-let loopAngle = 0; // persistent angle for loopDloop
 function updateShark(dt) {
   if (!sharkActive) return;
   
@@ -161,9 +175,9 @@ function updateShark(dt) {
         
       // Do a circular movement when updateBuffer >= 100
       // Log when first entering loop (angle is near 0)
-      if (loopAngle < 0.02) {
-        console.log(`loopDloop: Starting loop at position (${sharkPosition.x.toFixed(1)}, ${sharkPosition.y.toFixed(1)}), updateBuffer: ${updateBuffer}`);
-      }
+      // if (loopAngle < 0.02) {
+      //   console.log(`Shark loopDloop: Starting loop at position (${sharkPosition.x.toFixed(1)}, ${sharkPosition.y.toFixed(1)}), updateBuffer: ${updateBuffer}`);
+      // }
       let radius = 50;
       let centerX = sharkPosition.x;
       let centerY = sharkPosition.y;
@@ -176,12 +190,9 @@ function updateShark(dt) {
       sharkPosition.y = newY;
       // Log every 90 degrees (quarter circle)
       let angleDegrees = (loopAngle * 180 / Math.PI) % 360;
-      if (Math.abs(angleDegrees % 90) < 1 || Math.abs(angleDegrees % 90 - 90) < 1) {
-        console.log(`loopDloop: angle=${loopAngle.toFixed(3)} (${angleDegrees.toFixed(1)}°), center=(${centerX.toFixed(1)}, ${centerY.toFixed(1)}), pos=(${newX.toFixed(1)}, ${newY.toFixed(1)})`);
-      }
 
       if (loopAngle > 2 * Math.PI) {
-        console.log("loopDloop: Completed full circle, moving forward");
+        //console.log("loopDloop: Completed full circle, moving forward");
         loopAngle = 0;
         sharkVelocity.x = 100;
         sharkVelocity.y = 0;
@@ -220,7 +231,7 @@ function updateShark(dt) {
             movementBehavior = behaviors[Math.floor(Math.random() * behaviors.length)];
             console.log("Shark movement changed");
           }
-          movementBehavior = 'randomXandYVelocity'; // change to test
+          //movementBehavior = 'default'; // change to test
           console.log("Shark movement behavior: ", movementBehavior, "x:", sharkPosition.x);
           updateBuffer = 0;
         }
@@ -250,48 +261,137 @@ function updateShark(dt) {
   }
 }
 
-const players = new Map(); // uid -> {socketId, position, nickname, character, direction}
-const activeSockets = new Map(); // socket.id -> uid (tracks which sockets are currently active)
-
-// Shark state
-let sharkPosition = { x: -100, y: 300 }; // off-screen initially (will be set properly in startSharkEvent)
-let sharkVelocity = { x: 0, y: 0 };
-let sharkActive = false;
-
-// Shark configuration
-const sharkConfig = {
-  maxXVelocity: 600, // px per second (target velocity)
-  maxYVelocity: 700, // px per second (target velocity)
-  maxYPosition: 550,
-  acceleration: 500, // px per second squared
-  friction: 0.99, // friction coefficient
-  startX: -100, // off-screen left
-  endX: 3000, // off-screen right
-  updateIntervalMs: 50, // same as bubble tick rate
-};
-
-// Bubbles: server-authoritative bubble state
-const bubbles = new Map(); // id -> { id, x, y, vy, ownerId, createdAt }
-const lastBubbleAt = new Map(); // uid -> timestamp
-
-function makeBubbleId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+// ============================================================================
+// STORAGE FUNCTIONS
+// ============================================================================
+// Load coins map from Google Cloud bucket on startup
+async function loadCoinsFromBucket() {
+  try {
+    console.log(`Loading coins map from bucket: ${COINS_BUCKET_URL}`);
+    const response = await fetch(COINS_BUCKET_URL);
+    
+    if (!response.ok) {
+      if (response.status === 404) {
+        console.log("Coins map not found in bucket, starting with empty map");
+        return;
+      }
+      throw new Error(`Failed to load coins map: ${response.status} ${response.statusText}`);
+    }
+    
+    const coinsData = await response.json();
+    
+    // Clear existing coins and load from bucket
+    coins.clear();
+    for (const [uid, coinCount] of Object.entries(coinsData)) {
+      coins.set(uid, coinCount);
+    }
+    
+    console.log(`Successfully loaded ${coins.size} coin entries from bucket`);
+  } catch (error) {
+    console.error("Error loading coins map from bucket:", error.message);
+    console.log("Starting with empty coins map");
+  }
 }
 
-const bubbleConfig = {
-  tickMs: 50, // 20Hz
-  defaultVy: -60, // px per second (upwards)
-  ttlMs: 8000, // max lifetime
-  perPlayerCooldownMs: 300, // cooldown between bubbles per player
-  maxBubbles: 500,
-};
+// Save coins map to Google Cloud bucket on shutdown
+async function saveCoinsToBucket() {
+  try {
+    console.log(`Saving coins map to bucket: ${COINS_BUCKET_URL}`);
+    
+    // Convert Map to plain object for JSON serialization
+    const coinsData = {};
+    for (const [uid, coinCount] of coins.entries()) {
+      coinsData[uid] = coinCount;
+    }
+    
+    const response = await fetch(COINS_BUCKET_URL, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(coinsData),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to save coins map: ${response.status} ${response.statusText}`);
+    }
+    
+    console.log(`Successfully saved ${coins.size} coin entries to bucket`);
+  } catch (error) {
+    console.error("Error saving coins map to bucket:", error.message);
+  }
+}
 
-// Chat messages
-const messages = new Map(); // messageId -> { id, senderId, senderNickname, text, timestamp }
-const messageConfig = {
-  ttlMs: 10000, // messages fade after 10 seconds
-};
+// Graceful shutdown handlers
+async function gracefulShutdown(signal) {
+  console.log(`Received ${signal}, shutting down gracefully...`);
+  await saveCoinsToBucket();
+  server.close(() => {
+    console.log("Server closed");
+    process.exit(0);
+  });
+}
 
+// ============================================================================
+// EXPRESS APP SETUP
+// ============================================================================
+const app = express();
+
+app.use(express.json());
+
+// Optional: simple HTTP endpoint for health checks or root
+app.get("/", (req, res) => res.send("🐠 Fish server is alive!"));
+
+// Pub/Sub push endpoint for shark events
+app.post("/pubsub/shark-event", (req, res) => {
+  try {
+    const { message } = req.body;
+    if (!message || !message.data) {
+      console.error("Invalid Pub/Sub message format:", req.body);
+      return res.status(400).send("Invalid message format");
+    }
+
+    // Decode base64 message data
+    let messageData;
+    try {
+      const decodedData = Buffer.from(message.data, "base64").toString("utf-8");
+      messageData = JSON.parse(decodedData);
+    } catch (error) {
+      console.error("Error decoding message data:", error);
+      return res.status(400).send("Invalid message data");
+    }
+
+    if (sharkEventOngoing) {
+      console.log("Attpemted shark event trigger... Shark event already ongoing, skipping...");
+      res.status(202).send("Event already in progress");
+      return null;
+    }
+
+    sharkEventOngoing = true;
+    console.log(message.publishTime, "Event triggered:", messageData.event);
+    console.log("Triggered by:", message.attributes || {});
+    // Return 200 to acknowledge the message
+    res.status(200).send("OK");
+    startSharkEvent();
+  } catch (error) {
+    console.error("Error processing shark event:", error);
+    res.status(500).send("Internal server error");
+  }
+});
+
+// ============================================================================
+// HTTP SERVER AND SOCKET.IO SETUP
+// ============================================================================
+// Use Node HTTP server with Express
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: { origin: "*" }, // allow all origins
+});
+
+// ============================================================================
+// SOCKET.IO EVENT HANDLERS
+// ============================================================================
 io.on("connection", (socket) => {
 
   if (!socket.id) return;
@@ -331,6 +431,11 @@ io.on("connection", (socket) => {
     players.set(uid, playerData);
     activeSockets.set(socket.id, uid);
     
+    // Initialize coins if player is new
+    if (!coins.has(uid)) {
+      coins.set(uid, 0);
+    }
+    
     // Now disconnect old socket if it exists
     if (oldSocketId) {
       const oldSocket = io.sockets.sockets.get(oldSocketId);
@@ -342,6 +447,9 @@ io.on("connection", (socket) => {
     }
     
     console.log(`${playerData.nickname} joined | uid: ${uid} | socket: ${socket.id}`);
+    
+    // Get coin count for this player
+    const coinCount = coins.get(uid) || 0;
     
     // Send full list of current active players (only those with active sockets)
     const playersMap = {};
@@ -356,7 +464,7 @@ io.on("connection", (socket) => {
         };
       }
     }
-    socket.emit("init", playersMap);
+    socket.emit("init", { playersMap, coinCount });
     
     // Broadcast updated player info to others
     socket.broadcast.emit("playerJoined", {
@@ -448,6 +556,23 @@ io.on("connection", (socket) => {
     console.log(`${playerData.nickname}: ${filteredText}`);
   });
 
+  // Handle player-shark collision
+  socket.on("playerSharkCollision", () => {
+    if (!socket.id) return;
+    const uid = activeSockets.get(socket.id);
+    if (!uid) return; // Player not yet registered
+    const playerData = players.get(uid);
+    if (playerData) {
+      console.log(`${playerData.nickname} collided with shark: ${uid}`);
+      // Deduct 10 coins (minimum 0)
+      const currentCoins = coins.get(uid) || 0;
+      const newCoinCount = Math.max(0, currentCoins - 10);
+      coins.set(uid, newCoinCount);
+      // Notify client of coin loss
+      socket.emit("coinBalanceUpdate", { coinCount: newCoinCount });
+    }
+  });
+
   // Handle disconnect
   socket.on("disconnect", () => {
     if (!socket.id) return;
@@ -466,45 +591,69 @@ io.on("connection", (socket) => {
   });
 });
 
-// Use dynamic port from Cloud Run or fallback to 8080 locally
-const port = process.env.PORT || 8080;
- 
- // Game tick loop: update bubbles and shark positions
- let lastTick = Date.now();
- setInterval(() => {
-   const now = Date.now();
-   const dt = (now - lastTick) / 1000; // seconds
-   lastTick = now;
+// ============================================================================
+// GAME LOOPS
+// ============================================================================
+// Game tick loop: update bubbles and shark positions
+let lastTick = Date.now();
+setInterval(() => {
+  const now = Date.now();
+  const dt = (now - lastTick) / 1000; // seconds
+  lastTick = now;
 
-   // Update shark (physics-based movement)
-   updateShark(dt);
+  // Update shark (physics-based movement)
+  updateShark(dt);
 
-   // Update bubbles
-   if (bubbles.size > 0) {
-     const updates = [];
-     for (const [id, b] of bubbles.entries()) {
-       b.y += b.vy * dt;
-       // expire by ttl or off-screen (y < -100)
-       if (now - b.createdAt > bubbleConfig.ttlMs || b.y < -100) {
-         bubbles.delete(id);
-         io.emit("bubbleRemoved", { id });
-       } else {
-         updates.push({ id: b.id, x: Math.round(b.x), y: Math.round(b.y) });
-       }
-     }
-     if (updates.length) io.emit("bubblesUpdate", updates);
+  // Update bubbles
+  if (bubbles.size > 0) {
+    const updates = [];
+    for (const [id, b] of bubbles.entries()) {
+      b.y += b.vy * dt;
+      // expire by ttl or off-screen (y < -100)
+      if (now - b.createdAt > bubbleConfig.ttlMs || b.y < -100) {
+        bubbles.delete(id);
+        io.emit("bubbleRemoved", { id });
+      } else {
+        updates.push({ id: b.id, x: Math.round(b.x), y: Math.round(b.y) });
+      }
+    }
+    if (updates.length) io.emit("bubblesUpdate", updates);
+  }
+}, bubbleConfig.tickMs);
+
+// Message cleanup loop: remove expired messages
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, msg] of messages.entries()) {
+    if (now - msg.timestamp > messageConfig.ttlMs) {
+      messages.delete(id);
+      io.emit("chatMessageRemoved", { id });
+    }
+  }
+}, 1000); // Check every second
+
+// Coin distribution loop: give 1 coin to each active player every 10 seconds
+setInterval(() => {
+  for (const [socketId, uid] of activeSockets.entries()) {
+    const currentCoins = coins.get(uid) || 0;
+   const newCoinCount = currentCoins + 1;
+   coins.set(uid, newCoinCount);
+   
+   // Find the socket and emit coinBalanceUpdate event
+   const socket = io.sockets.sockets.get(socketId);
+   if (socket) {
+     socket.emit("coinBalanceUpdate", { coinCount: newCoinCount });
    }
- }, bubbleConfig.tickMs);
+  }
+}, 10000); // Every 10 seconds
 
- // Message cleanup loop: remove expired messages
- setInterval(() => {
-   const now = Date.now();
-   for (const [id, msg] of messages.entries()) {
-     if (now - msg.timestamp > messageConfig.ttlMs) {
-       messages.delete(id);
-       io.emit("chatMessageRemoved", { id });
-     }
-   }
- }, 1000); // Check every second
- 
- server.listen(port, () => console.log(`🐠 Fish server running on port ${port}`));
+// ============================================================================
+// SERVER STARTUP
+// ============================================================================
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+
+// Load coins on startup, then start server
+loadCoinsFromBucket().then(() => {
+  server.listen(port, () => console.log(`🐠 Fish server running on port ${port}`));
+});

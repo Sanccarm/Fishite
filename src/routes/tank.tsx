@@ -56,11 +56,20 @@ export default function App() {
 	const posRef = useRef({ x: 100, y: 100 });
 	const directionRef = useRef<'left' | 'right'>('right');
 	const posInitialized = useRef(false);
+	const sharkRef = useRef<{ x: number; y: number; active: boolean } | null>(null);
 	const fishSize = 50;
+	
+	// Collision detection constants (matching component hitbox sizes)
+	const fishHitboxSize = 35; 
+	const sharkHitboxSize = 70; 
+	const COLLISION_COOLDOWN_MS = 500; // Cooldown between collision events
+	const lastCollisionTime = useRef<number>(0); // Track last collision time for cooldown
 	const [bubbles, setBubbles] = useState<Record<string, { x: number; y: number }>>({});
 	const [debugMode, setDebugMode] = useState(false);
 	const [shark, setShark] = useState<{ x: number; y: number; active: boolean } | null>(null);
 	const [showWarning, setShowWarning] = useState(false);
+	const [coinCount, setCoinCount] = useState<number>(0);
+	const prevCoinCountRef = useRef<number>(0);
 	
 
 	// Redirect to start page if nickname or character is missing
@@ -86,19 +95,26 @@ export default function App() {
 			}
 		});
 
-		socket.on("init", (playersMap: Record<string, { 
-			position: { x: number; y: number };
-			nickname?: string | null;
-			character?: string | null;
-			direction?: 'left' | 'right';
-		}>) => {
-			setPlayers(playersMap);
+		socket.on("init", (data: { 
+			playersMap: Record<string, { 
+				position: { x: number; y: number };
+				nickname?: string | null;
+				character?: string | null;
+				direction?: 'left' | 'right';
+			}>;
+			coinCount: number;
+		}) => {
+			setPlayers(data.playersMap);
 			setMyId(uid);
+			setCoinCount(data.coinCount);
+			prevCoinCountRef.current = data.coinCount;
+			// Dispatch custom event to update Header
+			window.dispatchEvent(new CustomEvent('coinUpdate', { detail: { coinCount: data.coinCount } }));
 			// Sync local position with server position if available
-			if (uid && playersMap[uid]?.position) {
-				posRef.current.x = playersMap[uid].position.x;
-				posRef.current.y = playersMap[uid].position.y;
-				directionRef.current = playersMap[uid].direction || 'right';
+			if (uid && data.playersMap[uid]?.position) {
+				posRef.current.x = data.playersMap[uid].position.x;
+				posRef.current.y = data.playersMap[uid].position.y;
+				directionRef.current = data.playersMap[uid].direction || 'right';
 				posInitialized.current = true;
 			}
 		})
@@ -172,22 +188,38 @@ export default function App() {
 
 		// Shark events
 		socket.on("sharkEventStart", ({ x, y }: { x: number; y: number }) => {
-			setShark({ x, y, active: true });
+			const sharkData = { x, y, active: true };
+			setShark(sharkData);
+			sharkRef.current = sharkData;
 			setShowWarning(true);
 		});
 
 		socket.on("sharkPosition", ({ x, y }: { x: number; y: number }) => {
 			setShark((prev) => {
 				if (!prev) return null;
-				return { ...prev, x, y };
+				const sharkData = { ...prev, x, y };
+				sharkRef.current = sharkData;
+				return sharkData;
 			});
 		});
 
 		socket.on("sharkEventEnd", () => {
 			setShark((prev) => {
 				if (!prev) return null;
-				return { ...prev, active: false };
+				const sharkData = { ...prev, active: false };
+				sharkRef.current = sharkData;
+				return sharkData;
 			});
+		});
+
+		// Coin collection events
+		socket.on("coinBalanceUpdate", ({ coinCount }: { coinCount: number }) => {
+			const prevCount = prevCoinCountRef.current;
+			const isIncrease = coinCount > prevCount;
+			prevCoinCountRef.current = coinCount;
+			setCoinCount(coinCount);
+			// Dispatch custom event to update Header with animation trigger
+			window.dispatchEvent(new CustomEvent('coinUpdate', { detail: { coinCount, animate: true, isIncrease } }));
 		});
 
 		return () => {
@@ -268,6 +300,42 @@ export default function App() {
 		const FRICTION = 0.9; // must be less than 1
 		let direction = directionRef.current;
 
+		// Collision detection function (AABB - Axis-Aligned Bounding Box)
+		const checkSharkCollision = (): boolean => {
+			// Only check if shark is active (use ref to avoid stale closure)
+			const currentShark = sharkRef.current;
+			if (!currentShark || !currentShark.active) return false;
+			
+			// Get player position
+			const playerX = pos.x;
+			const playerY = pos.y;
+			
+			// Get shark position
+			const sharkX = currentShark.x;
+			const sharkY = currentShark.y;
+			
+			// Calculate bounding boxes (centered coordinates)
+			// Fish bounds (using half of hitboxSize since coordinates are centered)
+			const fishHalfSize = fishHitboxSize / 2;
+			const fishLeft = playerX - fishHalfSize;
+			const fishRight = playerX + fishHalfSize;
+			const fishTop = playerY - fishHalfSize;
+			const fishBottom = playerY + fishHalfSize;
+			
+			// Shark bounds (using half of hitboxSize since coordinates are centered)
+			const sharkHalfSize = sharkHitboxSize / 2;
+			const sharkLeft = sharkX - sharkHalfSize;
+			const sharkRight = sharkX + sharkHalfSize;
+			const sharkTop = sharkY - sharkHalfSize;
+			const sharkBottom = sharkY + sharkHalfSize;
+			
+			// AABB collision check: boxes overlap if all these conditions are true
+			return fishLeft < sharkRight && 
+			       fishRight > sharkLeft && 
+			       fishTop < sharkBottom && 
+			       fishBottom > sharkTop;
+		};
+
 		const move = () => {
 			
 			// Accelerate while key pressed (works for arrow keys and wWASD)
@@ -310,6 +378,17 @@ export default function App() {
 			if (pos.x > maxX) pos.x = maxX;
 			if (pos.y > maxY) pos.y = maxY;
 
+			// Check for collision with shark
+			if (checkSharkCollision()) {
+				const now = Date.now();
+				// Only emit collision event if cooldown has passed
+				if (now - lastCollisionTime.current >= COLLISION_COOLDOWN_MS) {
+					lastCollisionTime.current = now;
+					if (socketRef.current && myId) {
+						socketRef.current.emit("playerSharkCollision");
+					}
+				}
+			}
 
 			// Update socket position to server
 			// Server will send back direction in playerMoved event
