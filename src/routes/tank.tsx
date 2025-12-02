@@ -92,7 +92,7 @@ export default function App() {
 		// Don't connect if missing nickname or character
 		if (!nickname || !character) return;
 		
-		const socket = io("http://localhost:8080"); // https://fishsever-1074820372233.us-east1.run.app
+		const socket = io("https://fishserver-1074820372233.us-east1.run.app"); // https://fishserver-1074820372233.us-east1.run.app
 		socketRef.current = socket;
 
 		socket.on("connect", () => {

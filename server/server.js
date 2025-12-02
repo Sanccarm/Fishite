@@ -267,6 +267,11 @@ function updateShark(dt) {
 // Load coins map from Google Cloud bucket on startup
 async function loadCoinsFromBucket() {
   try {
+    if (!COINS_BUCKET_URL) {
+      console.log("No coins bucket URL configured, starting with empty map");
+      return;
+    }
+    
     console.log(`Loading coins map from bucket: ${COINS_BUCKET_URL}`);
     const response = await fetch(COINS_BUCKET_URL);
     

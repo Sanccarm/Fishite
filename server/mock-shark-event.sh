@@ -25,7 +25,7 @@ response=$(curl -s -w "\n%{http_code}" -X POST \
   http://localhost:8080/pubsub/shark-event)
 
 http_code=$(echo "$response" | tail -n1)
-body=$(echo "$response" | sed '$d')
+body=$(echo "$response" | sed '$d') 
 
 if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
   echo "Response: $http_code"

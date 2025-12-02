@@ -1,5 +1,6 @@
 /** biome-ignore-all lint/a11y/useKeyWithClickEvents: <Being dumb> */
 /** biome-ignore-all lint/a11y/noStaticElementInteractions: <Being dumb> */
+import { v4 as uuidv4 } from 'uuid';
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useAudio } from "../lib/AudioProvider";
@@ -42,7 +43,7 @@ function App() {
 		
 		// Generate and store UID if it doesn't exist
 		if (!localStorage.getItem("playerUid")) {
-			const newUid = crypto.randomUUID();
+			const newUid = uuidv4();
 			localStorage.setItem("playerUid", newUid);
 		}
 		
