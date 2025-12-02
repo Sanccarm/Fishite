@@ -12,7 +12,7 @@ interface FishProps {
 export function Fish({ x = 100, y = 100, clientId: _clientId, character, nickname = 'Anonymous', direction = 'right', debug = false, imageSize = 50}: FishProps) {
 	const hitboxSize = 35;
 	
-	// Determine which GIF to use based on character, default to pinkfish
+	// Determine which GIF to use based on character, default to big_fish.gif
 	const gifPath = character 
 		? `/fishes/${character}.gif` 
 		: '/fishes/big_fish.gif';

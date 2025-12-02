@@ -45,6 +45,7 @@ export default function App() {
 	const [bubbles, setBubbles] = useState<Record<string, { x: number; y: number }>>({});
 	const [debugMode, setDebugMode] = useState(false);
 	const [shark, setShark] = useState<{ x: number; y: number; active: boolean } | null>(null);
+	const [showWarning, setShowWarning] = useState(false);
 	
 
 	// Redirect to start page if nickname or character is missing
@@ -150,6 +151,7 @@ export default function App() {
 		// Shark events
 		socket.on("sharkEventStart", ({ x, y }: { x: number; y: number }) => {
 			setShark({ x, y, active: true });
+			setShowWarning(true);
 		});
 
 		socket.on("sharkPosition", ({ x, y }: { x: number; y: number }) => {
@@ -170,6 +172,16 @@ export default function App() {
 			socket.disconnect();
 		}
 	}, []);
+
+	// Hide warning after 2 seconds
+	useEffect(() => {
+		if (showWarning) {
+			const timer = setTimeout(() => {
+				setShowWarning(false);
+			}, 2000);
+			return () => clearTimeout(timer);
+		}
+	}, [showWarning]);
 
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
@@ -324,6 +336,7 @@ export default function App() {
 			style={{
 				width: "100vw",
 				height: "100vh",
+				maxHeight: "1200px",
 				position: "relative",
 				overflow: "hidden",
 			}}
@@ -388,6 +401,21 @@ export default function App() {
 
 				{shark?.active && (
 					<Shark x={shark.x} y={shark.y} direction="right" debug={debugMode} />
+				)}
+
+				{showWarning && (
+					<img
+						src="/warning.gif"
+						alt="Warning"
+						style={{
+							position: 'absolute',
+							left: '20px',
+							top: '50%',
+							transform: 'translateY(-50%)',
+							zIndex: 1000,
+							pointerEvents: 'none',
+						}}
+					/>
 				)}
 			</Ocean>
 		</div>

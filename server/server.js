@@ -55,6 +55,9 @@ const io = new Server(server, {
   cors: { origin: "*" }, // allow all origins
 });
 
+let behaviors = ['randomYVelocity', 'randomXandYVelocity', 'signwave', 'loopDloop', 'teleport'];
+let movementBehavior = 'default';
+
 function startSharkEvent() {
   if (sharkActive) {
     console.log("Shark event already active, skipping...");
@@ -62,22 +65,167 @@ function startSharkEvent() {
   }
 
   // Initialize shark position and velocity
-  sharkPosition = { x: sharkConfig.startX, y: sharkConfig.yPosition };
+  // Generate y within valid range to match the clamp constraint
+  sharkPosition = { x: sharkConfig.startX, y: Math.random() * sharkConfig.maxYPosition };
   sharkVelocity = { x: 0, y: 0 };
   sharkActive = true;
+  movementBehavior = 'default';
+  updateBuffer = 0;
+  loopAngle = 0;
 
   // Emit shark event start with initial position
   io.emit("sharkEventStart", { x: sharkPosition.x, y: sharkPosition.y });
   console.log("Shark event started at", sharkPosition);
 }
 
+let signDirection = 'up';
+let updateBuffer = 0; //use this buffer to simluate a delay in the movement changes
+let loopAngle = 0; // persistent angle for loopDloop
 function updateShark(dt) {
   if (!sharkActive) return;
+  
+  switch (movementBehavior) {
+    case 'randomYVelocity':
+      // linear X + random Y velocity with buffer
+      if (sharkVelocity.x < sharkConfig.maxXVelocity) {
+        sharkVelocity.x += sharkConfig.acceleration * dt;
+        sharkVelocity.x = Math.min(sharkVelocity.x, sharkConfig.maxXVelocity);
+      }
+      if (sharkPosition.y <= 1 || sharkPosition.y >= sharkConfig.maxYPosition-10) {
+        sharkVelocity.y *= -1;
+      }
+      updateBuffer++;
+      // Set random Y velocity every 2 frames for more noticeable movement
+      if (updateBuffer >= 4) {
+        // Set Y velocity directly to a random value within limits
+        sharkVelocity.y = (Math.random() * sharkConfig.maxYVelocity * 2) - sharkConfig.maxYVelocity;
+        updateBuffer = 0;
+      }
+      break;
+    case 'randomXandYVelocity':
+      // random X and Y velocity with buffer
+      if (sharkVelocity.x < sharkConfig.maxXVelocity) {
+        sharkVelocity.x += sharkConfig.acceleration * dt;
+        sharkVelocity.x = Math.min(sharkVelocity.x, sharkConfig.maxXVelocity);
+      }
+      if (sharkVelocity.y < sharkConfig.maxYVelocity) {
+        sharkVelocity.y += sharkConfig.acceleration * dt;
+        sharkVelocity.y = Math.min(sharkVelocity.y, sharkConfig.maxYVelocity);
+      }
+      if (sharkPosition.y <= 1 || sharkPosition.y >= sharkConfig.maxYPosition-10) {
+        sharkVelocity.y *= -1;
+      }
+      updateBuffer++;
+      // Set random X and Y velocity every 2 frames for more noticeable movement
+      if (updateBuffer >= 4) {
+        // Set X and Y velocity directly to a random value within limits
+        sharkVelocity.x = (Math.random() * (sharkConfig.maxXVelocity-100)) + 100 ;
+        sharkVelocity.y = (Math.random() * sharkConfig.maxYVelocity * 2) - sharkConfig.maxYVelocity;
+        updateBuffer = 0;
+      }
+      break;
+    case 'signwave':
+      
+      if (sharkPosition.y < 50) {
+        signDirection = 'down';
+        sharkVelocity.y = 0;
+      }else if (sharkPosition.y > sharkConfig.maxYPosition) {
+        signDirection = 'up';
+        sharkVelocity.y = 0;
+      }
+      if (signDirection === 'up') {
+        sharkVelocity.y -= sharkConfig.acceleration * dt;
+      } else {
+        sharkVelocity.y += sharkConfig.acceleration * dt;
+      }
+      if (Math.abs(sharkVelocity.y) > sharkConfig.maxYVelocity) {
+        if (signDirection === 'up') {
+          signDirection = 'down';
+        } else {
+          signDirection = 'up';
+        }
+      }
+      break;
+    case 'loopDloop':
+      updateBuffer++;
+      
+      if (updateBuffer < 15) {
+        // Move forward before starting the loop
+        if (sharkVelocity.x < sharkConfig.maxXVelocity) {
+          sharkVelocity.x += sharkConfig.acceleration * dt;
+          sharkVelocity.x = Math.max(Math.min(sharkVelocity.x, sharkConfig.maxXVelocity), 500);
+        }
+        sharkVelocity.y = 0;
+        break;
+      }
+        
+      // Do a circular movement when updateBuffer >= 100
+      // Log when first entering loop (angle is near 0)
+      if (loopAngle < 0.02) {
+        console.log(`loopDloop: Starting loop at position (${sharkPosition.x.toFixed(1)}, ${sharkPosition.y.toFixed(1)}), updateBuffer: ${updateBuffer}`);
+      }
+      let radius = 50;
+      let centerX = sharkPosition.x;
+      let centerY = sharkPosition.y;
+      loopAngle += .15;
+      sharkVelocity.x = 0; // Override velocity for circular movement
+      sharkVelocity.y = 0;
+      let newX = centerX + radius * Math.cos(loopAngle);
+      let newY = centerY + radius * Math.sin(loopAngle);
+      sharkPosition.x = newX;
+      sharkPosition.y = newY;
+      // Log every 90 degrees (quarter circle)
+      let angleDegrees = (loopAngle * 180 / Math.PI) % 360;
+      if (Math.abs(angleDegrees % 90) < 1 || Math.abs(angleDegrees % 90 - 90) < 1) {
+        console.log(`loopDloop: angle=${loopAngle.toFixed(3)} (${angleDegrees.toFixed(1)}°), center=(${centerX.toFixed(1)}, ${centerY.toFixed(1)}), pos=(${newX.toFixed(1)}, ${newY.toFixed(1)})`);
+      }
 
-  // Apply acceleration toward target speed (moving right)
-  if (sharkVelocity.x < sharkConfig.targetSpeed) {
-    sharkVelocity.x += sharkConfig.acceleration * dt;
-    sharkVelocity.x = Math.min(sharkVelocity.x, sharkConfig.targetSpeed);
+      if (loopAngle > 2 * Math.PI) {
+        console.log("loopDloop: Completed full circle, moving forward");
+        loopAngle = 0;
+        sharkVelocity.x = 100;
+        sharkVelocity.y = 0;
+        updateBuffer = 0; // Reset to move forward again
+      }
+      break;
+    case 'teleportY':
+      // teleport Y movement - teleport to random y every 10 updateBuffers
+      updateBuffer++;
+      if (updateBuffer >= 10) {
+        // Teleport to a random y position
+        sharkPosition.y = Math.floor(Math.random() * sharkConfig.maxYPosition / 50) * 50;
+        updateBuffer = 0;
+      } else {
+        // Keep moving forward
+        if (sharkVelocity.x < 100) {
+          sharkVelocity.x += sharkConfig.acceleration * dt;
+          sharkVelocity.x = Math.min(sharkVelocity.x, 100);
+        }
+        sharkVelocity.y = 0;
+      }
+      break;
+    default:
+      //straight line horizontal movement
+      if (sharkVelocity.x < sharkConfig.maxXVelocity) {
+        sharkVelocity.x += sharkConfig.acceleration * dt;
+        sharkVelocity.x = Math.min(sharkVelocity.x, sharkConfig.maxXVelocity);
+      }
+      sharkVelocity.y = 0;
+      if (sharkPosition.x < 0){
+        movementBehavior = 'default';
+      }else {
+        updateBuffer++;
+        if (updateBuffer > 15){ 
+          if (Math.random() < 0.3){
+            movementBehavior = behaviors[Math.floor(Math.random() * behaviors.length)];
+            console.log("Shark movement changed");
+          }
+          movementBehavior = 'randomXandYVelocity'; // change to test
+          console.log("Shark movement behavior: ", movementBehavior, "x:", sharkPosition.x);
+          updateBuffer = 0;
+        }
+      }
+      break;
   }
 
   // Apply friction
@@ -85,6 +233,9 @@ function updateShark(dt) {
 
   // Update position based on velocity
   sharkPosition.x += sharkVelocity.x * dt;
+  sharkPosition.y += sharkVelocity.y * dt;
+  sharkPosition.y = Math.max(Math.min(sharkPosition.y, sharkConfig.maxYPosition), 0);
+
 
   // Broadcast position update
   io.emit("sharkPosition", { x: Math.round(sharkPosition.x), y: Math.round(sharkPosition.y) });
@@ -102,16 +253,17 @@ function updateShark(dt) {
 const players = new Map(); // this nees to be sent to RTC firebase eventually
 
 // Shark state
-let sharkPosition = { x: -100, y: 300 }; // off-screen initially
+let sharkPosition = { x: -100, y: 300 }; // off-screen initially (will be set properly in startSharkEvent)
 let sharkVelocity = { x: 0, y: 0 };
 let sharkActive = false;
 
 // Shark configuration
 const sharkConfig = {
-  targetSpeed: 1000, // px per second (target velocity)
-  acceleration: 100, // px per second squared
+  maxXVelocity: 600, // px per second (target velocity)
+  maxYVelocity: 700, // px per second (target velocity)
+  maxYPosition: 550,
+  acceleration: 500, // px per second squared
   friction: 0.99, // friction coefficient
-  yPosition: 300, // fixed Y position
   startX: -100, // off-screen left
   endX: 3000, // off-screen right
   updateIntervalMs: 50, // same as bubble tick rate
@@ -181,7 +333,7 @@ io.on("connection", (socket) => {
   }
   socket.emit("init", playersMap);
 
-  // Handle movement
+  // Handle player movement
   socket.on("move", (position, direction) => {
     if (!socket.id) return;
     const data = players.get(socket.id);
