@@ -5,13 +5,15 @@ import { Server } from "socket.io";
 import http from "http";
 import express from "express";
 import { filterText } from "./profanityFilter.js";
+import { Storage } from "@google-cloud/storage";
 
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
 // Google Cloud Storage configuration
-// TODO: Replace with actual bucket URL
-const COINS_BUCKET_URL = "";
+const BUCKET_NAME = "fishite-coins";
+const FILE_NAME = "coins.json"; 
+const coinsFile = new Storage().bucket(BUCKET_NAME).file(FILE_NAME);
 
 // Shark configuration
 const sharkConfig = {
@@ -267,18 +269,23 @@ function updateShark(dt) {
 // Load coins map from Google Cloud bucket on startup
 async function loadCoinsFromBucket() {
   try {
-    console.log(`Loading coins map from bucket: ${COINS_BUCKET_URL}`);
-    const response = await fetch(COINS_BUCKET_URL);
+    console.log(`Loading coins map from bucket: ${BUCKET_NAME}/${FILE_NAME}`);
     
-    if (!response.ok) {
-      if (response.status === 404) {
-        console.log("Coins map not found in bucket, starting with empty map");
-        return;
-      }
-      throw new Error(`Failed to load coins map: ${response.status} ${response.statusText}`);
+    // Check if file exists
+    const [exists] = await coinsFile.exists();
+    if (!exists) {
+      console.log("Coins map not found in bucket, starting with empty map");
+      // Create empty file for first-time setup
+      await coinsFile.save(JSON.stringify({}, null, 2), {
+        contentType: "application/json",
+      });
+      console.log("Created empty coins.json file in bucket");
+      return;
     }
     
-    const coinsData = await response.json();
+    // Download and parse the file
+    const [contents] = await coinsFile.download();
+    const coinsData = JSON.parse(contents.toString());
     
     // Clear existing coins and load from bucket
     coins.clear();
@@ -296,7 +303,7 @@ async function loadCoinsFromBucket() {
 // Save coins map to Google Cloud bucket on shutdown
 async function saveCoinsToBucket() {
   try {
-    console.log(`Saving coins map to bucket: ${COINS_BUCKET_URL}`);
+    console.log(`Saving coins map to bucket: ${BUCKET_NAME}/${FILE_NAME}`);
     
     // Convert Map to plain object for JSON serialization
     const coinsData = {};
@@ -304,17 +311,10 @@ async function saveCoinsToBucket() {
       coinsData[uid] = coinCount;
     }
     
-    const response = await fetch(COINS_BUCKET_URL, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(coinsData),
+    // Upload to bucket with proper content type
+    await coinsFile.save(JSON.stringify(coinsData, null, 2), {
+      contentType: "application/json",
     });
-    
-    if (!response.ok) {
-      throw new Error(`Failed to save coins map: ${response.status} ${response.statusText}`);
-    }
     
     console.log(`Successfully saved ${coins.size} coin entries to bucket`);
   } catch (error) {
