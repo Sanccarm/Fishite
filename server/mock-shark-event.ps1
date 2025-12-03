@@ -23,7 +23,7 @@ $body = @"
 "@
 
 try {
-    $response = Invoke-WebRequest -Uri "http://localhost:8080/pubsub/shark-event" `
+    $response = Invoke-WebRequest -Uri "https://fishserver-1074820372233.us-east1.run.app/pubsub/shark-event" `
         -Method Post `
         -ContentType "application/json" `
         -Body $body
